@@ -1,0 +1,79 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.9'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.bcp'
+version = '1.0.0-27032026-dev-0'
+description = 'dl-ms-enrolment'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // ============================================
+    // CORE SPRING BOOT DEPENDENCIES
+    // ============================================
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    
+    // Development tools
+    runtimeOnly 'org.springframework.boot:spring-boot-devtools'
+    
+    // ============================================
+    // JAKARTA & VALIDATION
+    // ============================================
+    //api 'jakarta.validation:jakarta.validation-api'
+    
+    // ============================================
+    // LOMBOK (Reduce boilerplate code)
+    // ============================================
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    
+    // ============================================
+    // MAPSTRUCT (Entity-DTO Mapping)
+    // ============================================
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+    
+    // ============================================
+    // API DOCUMENTATION (Swagger/OpenAPI)
+    // ============================================
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+  
+    
+    // ============================================
+    // DATABASE
+    // ============================================
+    runtimeOnly 'org.postgresql:postgresql:42.7.3'
+    
+
+    
+    // ============================================
+    // TESTING
+    // ============================================
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
+    testImplementation 'org.mockito:mockito-core:5.4.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.4.0'
+}
+
