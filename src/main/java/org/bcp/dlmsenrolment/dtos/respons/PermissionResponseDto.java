@@ -1,4 +1,4 @@
-package org.bcp.dlmsenrolment.dtos\respons;
+package org.bcp.dlmsenrolment.dtos.respons;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
