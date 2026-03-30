@@ -48,6 +48,7 @@ public class Role {
     private String description;
 
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 
     // ===== AUDIT FIELDS =====
@@ -67,9 +68,11 @@ public class Role {
 
     // ===== RELATIONSHIPS =====
     @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @Builder.Default
     private Set<RolePermission> rolePermissions = new HashSet<>();
 
     @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @Builder.Default
     private Set<UserRole> userRoles = new HashSet<>();
 
     // ===== LIFECYCLE CALLBACKS =====

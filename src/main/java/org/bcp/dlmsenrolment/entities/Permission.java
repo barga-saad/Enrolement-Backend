@@ -83,9 +83,11 @@ public class Permission {
      * - Allow only if true, deny (403) if false
      */
     @Column(name = "requires_owner_check", nullable = false)
+    @Builder.Default
     private Boolean requiresOwnerCheck = false;
 
     @Column(name = "is_active", nullable = false)
+    @Builder.Default
     private Boolean isActive = true;
 
     // ===== AUDIT FIELDS =====
@@ -105,6 +107,7 @@ public class Permission {
 
     // ===== RELATIONSHIPS =====
     @OneToMany(mappedBy = "permission", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @Builder.Default
     private Set<RolePermission> rolePermissions = new HashSet<>();
 
     // ===== LIFECYCLE CALLBACKS =====
