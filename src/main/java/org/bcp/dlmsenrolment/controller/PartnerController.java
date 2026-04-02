@@ -3,8 +3,6 @@ package org.bcp.dlmsenrolment.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.bcp.dlmsenrolment.dtos.request.PartnerRequestDto;
-import org.bcp.dlmsenrolment.dtos.request.TransferRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.dtos.respons.TransferResponseDto;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
@@ -53,19 +51,19 @@ public class PartnerController {
 
     /**
      * GET /getpartner/{partnerId} - Get partner by ID
-     * 
+     * <p>
      * SECURITY:
      * - Requires PARTNER_VIEW_OWN (with owner-check) OR PARTNER_VIEW_ALL permission
      * - If user has PARTNER_VIEW_OWN: Must be the creator of the partner
      * - If user has PARTNER_VIEW_ALL: Can view any partner
-     * 
-     * @param partnerId - Partner identifier
+     *
+     * @param partnerId      - Partner identifier
      * @param authentication - Current authenticated user (from JWT token)
      * @return Partner data
      */
     @GetMapping("getpartner/{partnerId}")
-    @Operation(summary = "Get partner by ID",
-            description = "Requires PARTNER_VIEW_OWN (own records) or PARTNER_VIEW_ALL (all records)")
+    @Operation(summary = "Get partner by ID", 
+               description = "Requires PARTNER_VIEW_OWN (own records) or PARTNER_VIEW_ALL (all records)")
     public ResponseEntity<ApiResponse<PartnerResponseDto>> getPartner(
             @PathVariable String partnerId,
             Authentication authentication) {
@@ -75,19 +73,19 @@ public class PartnerController {
 
     /**
      * GET /gealltransfers/{partnerId} - Get all transfers for a partner
-     * 
+     * <p>
      * SECURITY:
      * - Requires TRANSFER_VIEW_OWN (with owner-check) OR TRANSFER_VIEW_ALL permission
      * - If user has TRANSFER_VIEW_OWN: Only sees their own transfers
      * - If user has TRANSFER_VIEW_ALL: Can see all transfers for this partner
-     * 
-     * @param partnerId - Partner identifier
+     *
+     * @param partnerId      - Partner identifier
      * @param authentication - Current authenticated user (from JWT token)
      * @return List of transfer records
      */
     @GetMapping("gealltransfers/{partnerId}")
     @Operation(summary = "Get all transfers for partner",
-            description = "Requires TRANSFER_VIEW_OWN (own records) or TRANSFER_VIEW_ALL (all records)")
+               description = "Requires TRANSFER_VIEW_OWN (own records) or TRANSFER_VIEW_ALL (all records)")
     public ResponseEntity<ApiResponse<List<TransferResponseDto>>> getAllTransfer(
             @PathVariable String partnerId,
             Authentication authentication) {
