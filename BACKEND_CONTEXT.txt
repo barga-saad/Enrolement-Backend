@@ -1,0 +1,608 @@
+================================================================================
+    ENROLLMENT BACKEND - PROJECT CONTEXT & ARCHITECTURE
+    Spring Boot 3.2 + Java 17 + PostgreSQL 17
+    Date: April 1, 2026
+================================================================================
+
+1. PROJECT OVERVIEW
+================================================================================
+
+PROJECT NAME: BCP Partner Enrollment Platform - Backend
+ORGANIZATION: BCP Bank Morocco (Banque Centrale Populaire)
+PURPOSE: Enterprise-grade REST API for partner enrollment and management
+
+TECHNOLOGY STACK:
+  - Spring Boot 3.2.9 (latest release)
+  - Java 17 (LTS version, modern features)
+  - PostgreSQL 17 (latest)
+  - Spring Data JPA + Hibernate ORM
+  - OAuth2 Resource Server (JWT validation)
+  - Spring Security 6
+  - Gradle 8.x (build tool)
+  - Lombok (reduce boilerplate)
+  - MapStruct (DTO mapping)
+  - JUnit 5 + Mock (testing)
+
+
+2. SECURITY ARCHITECTURE
+================================================================================
+
+2.1 AUTHENTICATION & AUTHORIZATION
+────────────────────────────────────
+
+AUTHENTICATION (Who are you?):
+  ✓ JWT Bearer Token from Keycloak/Auth Server
+  ✓ Token validated on every request
+  ✓ JwtAuthenticationFilter processes tokens
+  ✓ SpringSecurityContext holds authenticated user
+
+AUTHORIZATION (What can you do?):
+  ✓ Role-Based Access Control (RBAC)
+  ✓ 4 roles: PROFIL_SAISIE, PROFIL_VALIDATEUR, PROFIL_CONSULTATION, PROFIL_ADMIN_CENTRAL
+  ✓ 15 permissions (database-driven, not hard-coded)
+  ✓ Dynamic permission resolution via PermissionResolver
+  ✓ PermissionAuthorizationFilter enforces on every request
+  ✓ Multi-role users supported (both roles' permissions combined)
+
+2.2 ROLE & PERMISSION SYSTEM
+──────────────────────────────
+
+ROLES (4 total):
+  1. PROFIL_SAISIE (Data Entry Clerk)
+     - Can create partners
+     - Can create transfers
+     - Can view own data
+     - Cannot validate or approve
+
+  2. PROFIL_VALIDATEUR (Validator)
+     - Can view all partners
+     - Can validate transfers
+     - Can approve transactions
+     - Cannot delete
+
+  3. PROFIL_CONSULTATION (Read-Only)
+     - Can view all data
+     - Cannot create or modify
+     - Cannot delete
+
+  4. PROFIL_ADMIN_CENTRAL (Administrator)
+     - Full system access
+     - Can manage users, roles, permissions
+     - Can audit all activity
+     - Emergency access
+
+PERMISSIONS (15 total, database-driven):
+  Each permission has: name, endpoint, httpMethod, requiresOwnerCheck
+  
+  Examples:
+    - CREATE_PARTNER: POST /v1/create/partners
+    - UPDATE_PARTNER: PUT /v1/update/partners
+    - DELETE_PARTNER: DELETE /v1/delete/partners/{id}
+    - VIEW_ALL_PARTNERS: GET /v1/read/partners
+    - MANAGE_USERS: POST /admin/users
+    - etc.
+
+
+2.3 SECURITY LAYERS
+──────────────────
+
+Layer 1: JwtAuthenticationFilter
+  - Validates token signature
+  - Checks token expiration
+  - Extracts user claims
+  - Sets SecurityContext
+
+Layer 2: PermissionAuthorizationFilter
+  - After JWT validation
+  - Loads user permissions from database
+  - Checks if request matches permission
+  - UNION-based for multi-role users (most permissive wins)
+  - Returns 401 (auth), 403 (permission), 400 (validation)
+
+Layer 3: Method-level Security (Future)
+  @PreAuthorize("hasPermission(...)")
+  Optional fine-grained control
+
+
+3. DATABASE SCHEMA
+================================================================================
+
+3.1 CORE ENTITIES
+───────────────────
+
+Users Table:
+  - id (PK)
+  - username (unique)
+  - email (unique)
+  - first_name, last_name
+  - password_hash (from Keycloak usually)
+  - is_active
+  - created_by, created_at
+  - deleted_at, deleted_by (soft delete)
+
+Roles Table:
+  - id (PK)
+  - role_name (unique): PROFIL_SAISIE, etc.
+  - description
+  - is_active
+  - created_by, created_at
+  - deleted_at, deleted_by (soft delete)
+
+Permissions Table:
+  - id (PK)
+  - permission_name (unique)
+  - endpoint (e.g., "/v1/create/partners")
+  - http_method (GET, POST, PUT, DELETE)
+  - requires_owner_check (true: only own data, false: all data)
+  - description
+  - is_active
+  - created_by, created_at
+  - deleted_at, deleted_by (soft delete)
+
+RolePermissions Table (Join):
+  - role_id (FK → Roles)
+  - permission_id (FK → Permissions)
+  - granted_by, granted_at
+  - Composite Primary Key: (role_id, permission_id)
+
+UserRoles Table (Join):
+  - user_id (FK → Users)
+  - role_id (FK → Roles)
+  - assigned_by, assigned_at
+  - Composite Primary Key: (user_id, role_id)
+  - Allows multi-role users
+
+AuditLog Table:
+  - id (PK)
+  - entity_type (Partner, Transfer, etc.)
+  - entity_id (ID of the affected entity)
+  - action (CREATE, UPDATE, DELETE)
+  - field_name, old_value, new_value
+  - changed_by, changed_at
+
+3.2 BUSINESS ENTITIES
+──────────────────────
+
+Partners Table:
+  - id (PK)
+  - name (unique)
+  - email (unique)
+  - phone
+  - address
+  - status (active, pending, suspended)
+  - created_by, created_at
+  - updated_by, updated_at
+  - deleted_at, deleted_by (soft delete)
+
+PartnerCurrency Table:
+  - id (PK)
+  - partner_id (FK)
+  - currency (USD, EUR, MAD, etc.)
+  - account_number
+  - is_active
+  - created_at
+  - deleted_at (soft delete)
+
+Transfers Table:
+  - id (PK)
+  - partner_id (FK)
+  - amount (decimal)
+  - currency
+  - status (pending, approved, rejected, completed)
+  - reference_number
+  - created_by, created_at
+  - updated_by, updated_at
+  - deleted_at, deleted_by (soft delete)
+
+
+4. API ENDPOINTS
+================================================================================
+
+4.1 AUTHENTICATION
+────────────────────
+
+PUBLIC:
+  POST /auth/login
+    Request: { username: string, password: string }
+    Response: { token: string, user: User }
+    Status: 200 (ok), 401 (invalid), 400 (validation)
+
+  POST /auth/logout
+    Request: empty
+    Response: { message: "Logged out" }
+    Status: 200
+
+PROTECTED:
+  POST /auth/refresh-token
+    Response: { token: string }
+    Status: 200, 401
+
+
+4.2 USER MANAGEMENT (Admin only)
+──────────────────────────────────
+
+GET /admin/users
+  - List all users (paginated)
+  - Query params: page, size, sort, filter
+  - Response: PaginatedResponse<User>
+  - Required permission: MANAGE_USERS
+
+POST /admin/users
+  - Create new user
+  - Request: UserCreateRequest
+  - Response: User
+  - Required permission: MANAGE_USERS
+
+GET /admin/users/{id}
+  - Get user by ID
+  - Response: User
+  - Required permission: MANAGE_USERS
+
+PUT /admin/users/{id}
+  - Update user
+  - Request: UserUpdateRequest
+  - Response: User
+  - Required permission: MANAGE_USERS
+
+DELETE /admin/users/{id}
+  - Delete user (soft delete)
+  - Response: { message: "User deleted" }
+  - Required permission: DELETE_USERS
+
+GET /admin/users/{id}/roles
+  - Get user's roles
+  - Response: Role[]
+  - Required permission: MANAGE_USERS
+
+POST /admin/users/{userId}/roles/{roleId}
+  - Assign role to user
+  - Response: { message: "Role assigned" }
+  - Required permission: MANAGE_USERS
+
+DELETE /admin/users/{userId}/roles/{roleId}
+  - Revoke role from user
+  - Response: { message: "Role revoked" }
+  - Required permission: MANAGE_USERS
+
+
+4.3 ROLE MANAGEMENT (Admin only)
+──────────────────────────────────
+
+Endpoints:
+  GET /admin/roles
+  POST /admin/roles
+  GET /admin/roles/{id}
+  PUT /admin/roles/{id}
+  DELETE /admin/roles/{id}
+  GET /admin/roles/{id}/permissions
+  POST /admin/roles/{roleId}/permissions/{permissionId}
+  DELETE /admin/roles/{roleId}/permissions/{permissionId}
+
+All require PROFIL_ADMIN_CENTRAL role
+
+
+4.4 PERMISSION MANAGEMENT (Admin only)
+────────────────────────────────────────
+
+Endpoints:
+  GET /admin/permissions
+  POST /admin/permissions
+  GET /admin/permissions/{id}
+  PUT /admin/permissions/{id}
+  DELETE /admin/permissions/{id}
+
+All require PROFIL_ADMIN_CENTRAL role
+
+
+4.5 PARTNER MANAGEMENT (All authenticated users)
+──────────────────────────────────────────────────
+
+GET /v1/read/partners
+  - List partners
+  - Required permission: VIEW_PARTNERS
+
+POST /v1/create/partners
+  - Create partner
+  - Required permission: CREATE_PARTNER
+
+GET /getpartner/{id}
+  - Get partner by ID
+  - Required permission: VIEW_PARTNERS or owner check
+
+PUT /v1/update/partners
+  - Update partner
+  - Required permission: UPDATE_PARTNER
+
+DELETE /v1/delete/partners/{id}
+  - Delete partner
+  - Required permission: DELETE_PARTNER
+
+
+4.6 TRANSFER MANAGEMENT
+────────────────────────
+
+GET /v1/read/transfers
+  - List all transfers
+  - Required permission: VIEW_TRANSFERS
+
+POST /v1/create/transfers
+  - Create transfer
+  - Required permission: CREATE_TRANSFER
+
+GET /gealltransfers/{partnerId}
+  - Get partner's transfers
+  - Required permission: VIEW_TRANSFERS
+
+POST /v1/approve/transfers/{id}
+  - Approve transfer
+  - Required permission: APPROVE_TRANSFER
+
+POST /v1/reject/transfers/{id}
+  - Reject transfer
+  - Required permission: REJECT_TRANSFER
+
+
+5. PROJECT STRUCTURE
+================================================================================
+
+src/main/java/org/bcp/dlmsenrolment/
+├── DlMsEnrolmentApplication.java
+├── controller/
+│   ├── DispatcherController.java
+│   ├── PartnerController.java
+│   ├── AdminUserController.java
+│   ├── AdminRoleController.java
+│   ├── AdminPermissionController.java
+│   └── AuthController.java
+├── dtos/
+│   ├── request/
+│   │   ├── LoginRequest.java
+│   │   ├── UserCreateRequest.java
+│   │   ├── UserUpdateRequest.java
+│   │   ├── RoleCreateRequest.java
+│   │   └── ... (more requests)
+│   ├── response/
+│   │   ├── LoginResponse.java
+│   │   ├── UserResponseDto.java
+│   │   ├── RoleResponseDto.java
+│   │   └── ... (more responses)
+│   └── PaginatedResponse.java
+├── entities/
+│   ├── User.java (security entity)
+│   ├── Role.java
+│   ├── Permission.java
+│   ├── RolePermission.java
+│   ├── UserRole.java
+│   ├── AuditLog.java
+│   ├── Partner.java (business entity)
+│   ├── PartnerCurrency.java
+│   ├── Transfer.java
+│   └── TransactionLog.java
+├── repositories/
+│   ├── UserRepository.java
+│   ├── RoleRepository.java
+│   ├── PermissionRepository.java
+│   ├── UserRoleRepository.java
+│   ├── RolePermissionRepository.java
+│   ├── AuditLogRepository.java
+│   ├── PartnerRepository.java
+│   ├── PartnerCurrencyRepository.java
+│   ├── TransferRepository.java
+│   └── (more repositories)
+├── services/
+│   ├── UserService.java (interface)
+│   ├── RoleService.java
+│   ├── PermissionService.java
+│   ├── PartnerService.java
+│   ├── TransferService.java
+│   ├── DispatcherService.java
+│   ├── SecurityTokenService.java
+│   └── impl/
+│       ├── UserServiceImpl.java
+│       ├── RoleServiceImpl.java
+│       ├── PermissionServiceImpl.java
+│       ├── PartnerServiceImpl.java
+│       ├── TransferServiceImpl.java
+│       ├── DispatcherServiceImpl.java
+│       └── SecurityTokenServiceImpl.java
+├── security/
+│   ├── SecurityConfig.java
+│   ├── JwtAuthenticationFilter.java
+│   ├── PermissionAuthorizationFilter.java
+│   ├── PermissionResolver.java
+│   └── JwtTokenProvider.java
+├── exceptions/
+│   ├── GlobalExceptionHandler.java
+│   ├── ApiResponse.java
+│   ├── ApiError.java
+│   ├── InvalidRequestBodyException.java
+│   ├── PartnerNotFoundException.java
+│   ├── PartnerAlreadyExistsException.java
+│   ├── UnauthorizedException.java
+│   ├── ForbiddenException.java
+│   └── (more exceptions)
+├── mappers/
+│   ├── DtoMapper.java (interface)
+│   ├── PartnerMapper.java
+│   ├── UserMapper.java
+│   ├── RoleMapper.java
+│   └── (more mappers)
+└── config/
+    ├── DatabaseInitializer.java
+    ├── JpaConfig.java
+    └── (other configs)
+
+resources/
+├── application.properties
+├── application-dev.properties
+├── application-prod.properties
+├── database/
+│   └── migration scripts (Flyway)
+└── (static files, templates)
+
+
+6. IMPLEMENTATION STATUS
+================================================================================
+
+COMPLETED:
+  ✓ Database schema (6 security entities + 3 business entities)
+  ✓ JPA entities with relationships
+  ✓ Repositories with custom queries
+  ✓ Service interfaces + implementations
+  ✓ DTO mappers (MapStruct)
+  ✓ REST controllers (all 26+ endpoints)
+  ✓ Security filters (JWT + RBAC)
+  ✓ Permission resolver (dynamic role-based)
+  ✓ Global exception handling
+  ✓ DatabaseInitializer (seeds 4 roles + 15 permissions)
+  ✓ All business logic for partners/transfers
+  ✓ Audit logging for data changes
+
+VERIFIED:
+  ✓ No compilation errors
+  ✓ All endpoints callable
+  ✓ Security filters working
+  ✓ Database initialized with roles/permissions
+  ✓ JWT validation passing
+  ✓ RBAC enforced on all protected endpoints
+
+PENDING:
+  ⏳ Unit tests (optional for frontend dev, but recommended)
+  ⏳ Integration tests
+  ⏳ API documentation (Swagger/OpenAPI)
+  ⏳ Performance testing
+  ⏳ Load testing
+
+
+7. RUNNING THE BACKEND
+================================================================================
+
+PREREQUISITES:
+  - Java 17 (or later)
+  - PostgreSQL 17 (or compatible)
+  - Gradle 8.x
+
+SETUP:
+  1. Create PostgreSQL database:
+     createdb enrollment_db
+
+  2. Update application.properties:
+     spring.datasource.url=jdbc:postgresql://localhost:5432/enrollment_db
+     spring.datasource.username=your_db_user
+     spring.datasource.password=your_db_password
+
+  3. Build project:
+     ./gradlew clean build
+
+  4. Run application:
+     ./gradlew bootRun
+     
+     Or run JAR:
+     java -jar build/libs/dlms-enrolment-0.0.1-SNAPSHOT.jar
+
+  5. Verify startup:
+     - Check console for "Started DlMsEnrolmentApplication"
+     - API available at http://localhost:8080
+
+VERIFY ENDPOINTS:
+  - Login: POST /auth/login
+  - List users: GET /admin/users (requires ADMIN role)
+  - Create partner: POST /v1/create/partners
+
+
+8. KEYCLOAK INTEGRATION
+================================================================================
+
+OAUTH2 CONFIGURATION:
+  - Backend acts as OAuth2 Resource Server
+  - Validates tokens from Keycloak/Auth Server
+  - Extracts user info from JWT claims
+  
+  spring.security.oauth2.resourceserver.jwt.issuer-uri=<keycloak-url>/realms/bcp
+
+TOKEN STRUCTURE:
+  Header: { alg: "RS256", typ: "JWT" }
+  Payload: {
+    sub: "user-id",
+    preferred_username: "john.doe",
+    email: "john@example.com",
+    realm_access: { roles: ["PROFIL_ADMIN_CENTRAL"] }
+  }
+  Signature: Signed by Keycloak private key
+
+BACKEND RESPONSIBILITIES:
+  1. Validate token signature
+  2. Check expiration
+  3. Load user from database
+  4. Load user's roles and permissions
+  5. Enforce RBAC on requests
+  6. Audit all changes
+
+
+9. PERFORMANCE CONSIDERATIONS
+================================================================================
+
+OPTIMIZATION:
+  ✓ Spring Data JPA with indexed columns
+  ✓ @Query annotations for efficient SQL
+  ✓ Pagination for large result sets
+  ✓ Connection pooling (HikariCP)
+  ✓ Lazy loading for relationships (careful)
+
+CACHING (Future):
+  - Redis for permission cache (permissions don't change often)
+  - Cache invalidation on role/permission updates
+  - User role cache (refresh on login)
+
+MONITORING:
+  - Spring Boot Actuator (health, metrics)
+  - Request/response logging
+  - Database query profiling
+  - Error tracking (future: Sentry)
+
+
+10. DEVELOPMENT GUIDELINES
+================================================================================
+
+CODE STYLE:
+  ✓ Follow Spring conventions
+  ✓ Use @RequiredArgsConstructor for DI
+  ✓ One entity per file
+  ✓ Service interfaces separate from implementations
+  ✓ DTOs for request/response
+  ✓ Meaningful exception messages
+
+ERROR RESPONSES:
+  All errors return JSON:
+    {
+      "success": false,
+      "data": null,
+      "message": "Error description",
+      "timestamp": "2024-01-01T12:00:00Z",
+      "path": "/v1/create/partners",
+      "errors": {
+        "email": "Email already exists"
+      }
+    }
+
+ADDING NEW ENDPOINTS:
+  1. Create DTO (request, response)
+  2. Create/update service method
+  3. Add mapper if needed
+  4. Add permission in data initializer
+  5. Create controller endpoint
+  6. Test endpoint with curl/Postman
+
+
+================================================================================
+END OF BACKEND CONTEXT DOCUMENT
+================================================================================
+
+This document provides complete context for backend development.
+All architecture, security, database, and API structure documented.
+
+Status: 85% Complete (Core done, tests pending)
+Version: 1.0
+Date: April 1, 2026
+
+Next Steps: Frontend integration, comprehensive testing, deployment setup

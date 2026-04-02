@@ -144,8 +144,10 @@ public class SecurityConfig {
         
         // TODO: Change in production to your actual frontend URL
         configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",      // Local React dev server
+            "http://localhost:5173",      // Vite React dev server
+            "http://localhost:3000",      // Local React dev server (Create React App)
             "http://localhost:3001",
+            "http://127.0.0.1:5173",
             "http://127.0.0.1:3000"
         ));
         
