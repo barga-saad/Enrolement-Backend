@@ -60,15 +60,15 @@ public class DispatcherServiceImpl implements DispatcherService {
 
     @Override
     public ResponseEntity<?> read(String tableName, String partnerReferenceNumber, LocalDate startDate, LocalDate endDate) {
-        if ("partner".equalsIgnoreCase(tableName)) {
+        if ("partner".equalsIgnoreCase(tableName) || "partners".equalsIgnoreCase(tableName)) {
             if (partnerReferenceNumber != null) {
                 return partnerService.getPartner(partnerReferenceNumber);
             }
             return partnerService.getPartners();
 
-        } else if ("partnercurrency".equalsIgnoreCase(tableName)) {
+        } else if ("partnercurrency".equalsIgnoreCase(tableName) || "partnercurrencies".equalsIgnoreCase(tableName)) {
             return partnerCurrencyService.getPartnerCurrencies(partnerReferenceNumber);
-        } else if ("transfer".equalsIgnoreCase(tableName)) {
+        } else if ("transfer".equalsIgnoreCase(tableName) || "transfers".equalsIgnoreCase(tableName)) {
             if (startDate != null && endDate != null) {
                 return transferService.getAllTransfersByPartnerIdAndStartDateAndEndDate(partnerReferenceNumber, startDate, endDate);
             }
