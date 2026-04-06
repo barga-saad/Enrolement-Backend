@@ -163,6 +163,15 @@ public class AuthController {
             log.warn("Invalid credentials for user: {}", loginRequest.getUsername());
             return ResponseEntity.status(401).body(
                 ApiResponse.error("INVALID_CREDENTIALS", "Invalid username or password", null));
+        } catch (org.springframework.web.client.HttpClientErrorException.BadRequest e) {
+            String body = e.getResponseBodyAsString();
+            if (body.contains("Account is not fully set up")) {
+                log.info("User {} has temporary password — requires password change", loginRequest.getUsername());
+                return handleTemporaryPasswordUser(loginRequest);
+            }
+            log.warn("Bad request during login for user: {}", loginRequest.getUsername());
+            return ResponseEntity.status(400).body(
+                ApiResponse.error("BAD_REQUEST", "Login failed", null));
         } catch (Exception e) {
             log.error("Login error for user: {}", loginRequest.getUsername(), e);
             return ResponseEntity.status(500).body(
@@ -277,6 +286,77 @@ public class AuthController {
     }
 
     // ──────────────────────── HELPERS ─────────────────────────────────────────
+
+    /**
+     * Handle login for users with temporary passwords.
+     * Keycloak won't issue a token, so we use the Admin API to get user info,
+     * auto-sync to local DB, and return requiresPasswordChange=true.
+     */
+    private ResponseEntity<?> handleTemporaryPasswordUser(LoginRequest loginRequest) {
+        try {
+            String adminToken = getAdminToken();
+            String keycloakUserId = findKeycloakUserId(loginRequest.getUsername(), adminToken);
+            if (keycloakUserId == null) {
+                return ResponseEntity.status(404).body(
+                    ApiResponse.error("USER_NOT_FOUND", "User not found in Keycloak", null));
+            }
+
+            // Get user details from Keycloak Admin API
+            @SuppressWarnings("unchecked")
+            Map<String, Object> kcUser = getKeycloakUser(keycloakUserId, adminToken);
+            String email     = (String) kcUser.getOrDefault("email", "");
+            String firstName = (String) kcUser.getOrDefault("firstName", loginRequest.getUsername());
+            String lastName  = (String) kcUser.getOrDefault("lastName", "");
+
+            // Auto-sync to local DB
+            User user = userRepository.findByUsername(loginRequest.getUsername()).orElse(null);
+            if (user == null) {
+                user = new User();
+                user.setUsername(loginRequest.getUsername());
+                user.setEmail(email != null && !email.isBlank() ? email : loginRequest.getUsername() + "@enrollment.local");
+                user.setFirstName(firstName != null ? firstName : "");
+                user.setLastName(lastName != null ? lastName : "");
+                user.setIsActive(true);
+                user.setCreatedAt(LocalDateTime.now());
+                user.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(user);
+                log.info("Auto-synced temp-password user from Keycloak: {}", loginRequest.getUsername());
+            }
+
+            List<String> roleNames = userRoleRepository.findActiveRolesByUsername(loginRequest.getUsername())
+                .stream()
+                .map(ur -> ur.getRole().getRoleName())
+                .collect(Collectors.toList());
+
+            LoginResponse loginResponse = LoginResponse.builder()
+                .token(null)
+                .requiresPasswordChange(true)
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .roleNames(roleNames)
+                .build();
+
+            return ResponseEntity.ok(ApiResponse.success("Password change required", loginResponse));
+        } catch (Exception ex) {
+            log.error("Error handling temp password user: {}", loginRequest.getUsername(), ex);
+            return ResponseEntity.status(500).body(
+                ApiResponse.error("INTERNAL_ERROR", "Failed to process temporary password user", null));
+        }
+    }
+
+    /** Get user details from Keycloak Admin API by user ID. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getKeycloakUser(String userId, String adminToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(adminToken);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        String url = keycloakAdminUrl + "/users/" + userId;
+        var response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        return response.getBody() != null ? response.getBody() : new HashMap<>();
+    }
 
     /** Decode a JWT token payload (middle section) into a Map. */
     @SuppressWarnings("unchecked")
