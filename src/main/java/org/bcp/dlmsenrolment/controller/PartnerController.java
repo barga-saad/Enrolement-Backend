@@ -3,6 +3,7 @@ package org.bcp.dlmsenrolment.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.bcp.dlmsenrolment.dtos.request.PartnerRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.dtos.respons.TransferResponseDto;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
@@ -10,10 +11,9 @@ import org.bcp.dlmsenrolment.services.PartnerService;
 import org.bcp.dlmsenrolment.services.TransferService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 /**
@@ -47,6 +47,23 @@ public class PartnerController {
     public PartnerController(PartnerService partnerService, TransferService transferService) {
         this.partnerService = partnerService;
         this.transferService = transferService;
+    }
+
+    /**
+     * GET /v1/read/partners - Get all partners
+     * <p>
+     * SECURITY:
+     * - Requires PARTNER_LIST_ALL permission
+     * - All authenticated users with appropriate role can access
+     *
+     * @return List of all partners
+     */
+    @GetMapping("/v1/read/partners")
+    @Operation(summary = "Get all partners", 
+               description = "Requires PARTNER_LIST_ALL permission")
+    public ResponseEntity<?> getAllPartners() {
+        log.info("Request to fetch all partners");
+        return partnerService.getPartners();
     }
 
     /**
@@ -91,5 +108,59 @@ public class PartnerController {
             Authentication authentication) {
         log.info("User {} requested transfers for partner: {}", authentication.getName(), partnerId);
         return transferService.getAllTransfersByPartnerReferenceNumber(partnerId);
+    }
+
+    /**
+     * POST /v1/create/partners - Create a new partner
+     * <p>
+     * SECURITY:
+     * - Requires PARTNER_CREATE permission
+     * - Creator's username will be recorded in the partner record
+     *
+     * @param request        - Partner creation request
+     * @param authentication - Current authenticated user
+     * @return Created partner
+     */
+    @PostMapping("/v1/create/partners")
+    @Operation(summary = "Create a new partner")
+    public ResponseEntity<ApiResponse<PartnerResponseDto>> createPartner(
+            @Valid @RequestBody PartnerRequestDto request,
+            Authentication authentication) {
+        log.info("User {} creating new partner: {}", authentication.getName(), request.getName());
+        return partnerService.createPartner(request);
+    }
+
+    /**
+     * PUT /v1/update/partners - Update an existing partner
+     * <p>
+     * SECURITY:
+     * - Requires PARTNER_UPDATE_OWN (own) or admin permission
+     *
+     * @param request - Partner update request
+     * @return Updated partner
+     */
+    @PutMapping("/v1/update/partners")
+    @Operation(summary = "Update an existing partner")
+    public ResponseEntity<ApiResponse<PartnerResponseDto>> updatePartner(
+            @Valid @RequestBody PartnerRequestDto request) {
+        log.info("Updating partner: {}", request.getPartnerReferenceNumber());
+        return partnerService.updatePartner(request);
+    }
+
+    /**
+     * DELETE /v1/delete/partners - Delete a partner
+     * <p>
+     * SECURITY:
+     * - Requires PARTNER_DELETE permission
+     *
+     * @param partnerReferenceNumber - Partner reference number
+     * @return Deleted partner data
+     */
+    @DeleteMapping("/v1/delete/partners")
+    @Operation(summary = "Delete a partner")
+    public ResponseEntity<ApiResponse<PartnerResponseDto>> deletePartner(
+            @RequestParam String partnerReferenceNumber) {
+        log.info("Deleting partner: {}", partnerReferenceNumber);
+        return partnerService.deletePartner(partnerReferenceNumber);
     }
 }

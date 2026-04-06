@@ -19,6 +19,12 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
     /**
+     * Find active user by username with roles eagerly loaded (NOT soft-deleted)
+     */
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.userRoles ur LEFT JOIN FETCH ur.role WHERE u.username = :username AND u.deletedAt IS NULL")
+    Optional<User> findByUsernameWithRoles(@Param("username") String username);
+
+    /**
      * Find active user by username (NOT soft-deleted)
      */
     @Query("SELECT u FROM User u WHERE u.username = :username AND u.deletedAt IS NULL")
