@@ -1,11 +1,23 @@
+############################
+# Java / Compiled files
+############################
+bin/
+*.class
+
+############################
 # Gradle
+############################
 .gradle
 build/
 gradle-app.setting
 !gradle-wrapper.jar
 .gradletasknamecache
+!**/src/main/**/build/
+!**/src/test/**/build/
 
+############################
 # IDE
+############################
 .vscode
 .idea
 *.iml
@@ -16,14 +28,29 @@ gradle-app.setting
 *~
 .DS_Store
 
+############################
 # Environment
+############################
 .env
 .env.local
 
+############################
 # Database
+############################
 *.db
 *.sqlite
 
+############################
 # Logs
-logs
+############################
+logs/
 *.log
+
+############################
+# NetBeans
+############################
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
