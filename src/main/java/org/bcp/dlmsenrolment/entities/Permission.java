@@ -30,7 +30,7 @@ import java.util.Set;
 @Table(name = "permissions", indexes = {
     @Index(name = "idx_permission_name", columnList = "permission_name"),
     @Index(name = "idx_endpoint_method", columnList = "endpoint, http_method"),
-    @Index(name = "idx_deleted_at", columnList = "deleted_at")
+    @Index(name = "idx_permissions_deleted_at", columnList = "deleted_at")
 })
 @Data
 @NoArgsConstructor

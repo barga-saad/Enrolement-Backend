@@ -15,5 +15,5 @@ public class PartnerResponseDto {
     private String name;
     private String partnerReferenceNumber;
     private String partnerType;
-    private boolean partnerStatus;
+    private String partnerStatus;
 }

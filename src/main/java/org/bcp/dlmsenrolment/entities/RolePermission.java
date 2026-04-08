@@ -29,7 +29,7 @@ import java.time.LocalDateTime;
         @UniqueConstraint(name = "uk_role_permission", columnNames = {"role_id", "permission_id"})
     },
     indexes = {
-        @Index(name = "idx_role_id", columnList = "role_id"),
+        @Index(name = "idx_role_permissions_role_id", columnList = "role_id"),
         @Index(name = "idx_permission_id", columnList = "permission_id")
     }
 )

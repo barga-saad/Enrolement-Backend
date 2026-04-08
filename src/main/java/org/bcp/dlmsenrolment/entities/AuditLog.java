@@ -32,7 +32,7 @@ import java.time.LocalDateTime;
 @Table(
     name = "audit_logs",
     indexes = {
-        @Index(name = "idx_user_id", columnList = "user_id"),
+        @Index(name = "idx_audit_logs_user_id", columnList = "user_id"),
         @Index(name = "idx_action", columnList = "action"),
         @Index(name = "idx_entity_type", columnList = "entity_type"),
         @Index(name = "idx_timestamp", columnList = "timestamp"),

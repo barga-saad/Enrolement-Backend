@@ -67,6 +67,10 @@ public class Transfer {
     // Account (Destinataire)
     @Column(name = "creditor_account_number", length = 24)
     private String accountNumber;
+
+    @Column(name = "creditor_account_number_16", length = 16)
+    private String accountNumber16;
+
     @Column(name = "creditor_account_type", length = 35)
     private String accountType;
 
@@ -134,4 +138,6 @@ public class Transfer {
     private String rejectionReasonLabel;     // libelleMotifRejetVirement
     private String rejectionReasonCode;      // codeMotifRejetVirement
     private String transferRejectionCode;    // codeRejetVirement
+    @Column(name = "is_reconciled")
+    private Boolean isReconciled = false;
 }

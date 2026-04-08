@@ -87,7 +87,7 @@ public class PartnerServiceImpl implements PartnerService {
         partner.setName(dto.getName());
         partner.setPartnerReferenceNumber(dto.getPartnerReferenceNumber());
         partner.setPartnerType(dto.getPartnerType());
-        partner.setPartnerStatus(dto.isPartnerStatus());
+        partner.setPartnerStatus(dto.getPartnerStatus());
         partner.setHeadquarterCountry(dto.getHeadquarterCountry());
         partner.setParentCompanyCountry(dto.getParentCompanyCountry());
         partner.setClassification(dto.getClassification());

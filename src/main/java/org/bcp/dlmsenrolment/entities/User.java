@@ -23,7 +23,7 @@ import java.util.Set;
 @Table(name = "users", indexes = {
     @Index(name = "idx_username", columnList = "username"),
     @Index(name = "idx_email", columnList = "email"),
-    @Index(name = "idx_deleted_at", columnList = "deleted_at")
+    @Index(name = "idx_users_deleted_at", columnList = "deleted_at")
 })
 @Data
 @NoArgsConstructor

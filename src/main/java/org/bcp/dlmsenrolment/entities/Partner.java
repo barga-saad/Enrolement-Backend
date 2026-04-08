@@ -26,9 +26,8 @@ public class Partner {
     @Column(nullable = false)
     private String partnerType;
 
-    //    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private boolean partnerStatus;
+    private String partnerStatus;
 
     @Column(name = "headquarter_country", nullable = false)
     private String headquarterCountry; // location of the main office of the partner (ex: FR, USA ...)
@@ -86,7 +85,7 @@ public class Partner {
     private BigDecimal limitWalletTransfer;
 
     @Column(name = "nature_mass_cash_pickup_transfer", nullable = false)
-    private String natureMassCashPickupTransfer;
+    private BigDecimal natureMassCashPickupTransfer;
 
     @Column(name = "valid_days_mass_cash_pickup_transfer", nullable = false)
     private Integer validDaysMassCashPickupTransfer;
@@ -110,7 +109,7 @@ public class Partner {
     private String subscriptionPeriodicity;
 
     @Column(name = "subscription_billing_account")
-    private String subscriptionBillingAccount;
+    private BigDecimal subscriptionBillingAccount;
 
     @Column(name = "payment_nature",nullable = false)
     private String paymentNature; // Post-paiement / Prépaiement
@@ -126,7 +125,7 @@ public class Partner {
     private Boolean immediateDebit; // Debit immediat
 
     @Column(name = "reimbursement")
-    private String reimbursement; //reversement
+    private Boolean reimbursement; //reversement
 
     //commission for every type of transfer
     @Column(name = "commission_currency",nullable = false)

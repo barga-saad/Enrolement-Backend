@@ -13,7 +13,7 @@ public class PartnerRequestDto {
     private String name;
     private String partnerReferenceNumber;
     private String partnerType;
-    private boolean partnerStatus;
+    private String partnerStatus;
     private String headquarterCountry;
     private String parentCompanyCountry;
     private String classification;
@@ -36,7 +36,7 @@ public class PartnerRequestDto {
     private BigDecimal limitMassCashPickupTransfer = BigDecimal.ZERO;
     private BigDecimal limitWalletTransfer = BigDecimal.ZERO;
 
-    private String natureMassCashPickupTransfer = "0";
+    private BigDecimal natureMassCashPickupTransfer = BigDecimal.ZERO;
     private Integer validDaysMassCashPickupTransfer = 0;
 
     // Currency
@@ -49,7 +49,7 @@ public class PartnerRequestDto {
     // Subscription
     private BigDecimal subscriptionFee = BigDecimal.ZERO;
     private String subscriptionPeriodicity;
-    private String subscriptionBillingAccount;
+    private BigDecimal subscriptionBillingAccount;
 
     private String paymentNature = "Post-paiement";
 
@@ -57,7 +57,7 @@ public class PartnerRequestDto {
     private String feeMode;
     private Boolean monthlyBilling = false;
     private Boolean immediateDebit = false;
-    private String reimbursement;
+    private Boolean reimbursement;
 
     // Commission currency
     private String commissionCurrency = "MAD";

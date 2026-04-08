@@ -29,7 +29,7 @@ import java.util.Set;
 @Entity
 @Table(name = "roles", indexes = {
     @Index(name = "idx_role_name", columnList = "role_name"),
-    @Index(name = "idx_deleted_at", columnList = "deleted_at")
+    @Index(name = "idx_roles_deleted_at", columnList = "deleted_at")
 })
 @Data
 @NoArgsConstructor
