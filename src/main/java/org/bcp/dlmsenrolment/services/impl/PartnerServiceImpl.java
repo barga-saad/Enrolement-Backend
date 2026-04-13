@@ -4,13 +4,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.request.PartnerRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.entities.Partner;
+import org.bcp.dlmsenrolment.entities.PartnerValidation;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
 import org.bcp.dlmsenrolment.excptions.PartnerAlreadyExistsException;
 import org.bcp.dlmsenrolment.excptions.PartnerNotFoundException;
 import org.bcp.dlmsenrolment.mappers.PartnerMapper;
 import org.bcp.dlmsenrolment.repositories.PartnerRepository;
+import org.bcp.dlmsenrolment.repositories.PartnerValidationRepository;
 import org.bcp.dlmsenrolment.services.PartnerService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,10 +27,13 @@ import java.util.Optional;
 public class PartnerServiceImpl implements PartnerService {
     private final PartnerRepository partnerRepository;
     private final PartnerMapper partnerMapper;
+    private final PartnerValidationRepository partnerValidationRepository;
 
-    public PartnerServiceImpl(PartnerRepository partnerRepository, PartnerMapper partnerMapper) {
+    public PartnerServiceImpl(PartnerRepository partnerRepository, PartnerMapper partnerMapper,
+                              PartnerValidationRepository partnerValidationRepository) {
         this.partnerRepository = partnerRepository;
         this.partnerMapper = partnerMapper;
+        this.partnerValidationRepository = partnerValidationRepository;
     }
     @Override
     public ResponseEntity<ApiResponse<PartnerResponseDto>> getPartner(String referenceNumber) {
@@ -58,6 +65,18 @@ public class PartnerServiceImpl implements PartnerService {
             );
         }
         Partner savedPartner = partnerRepository.save(partnerMapper.toEntity(partnerRequestDto));
+
+        // Auto-create a PartnerValidation record with status PENDING
+        String username = getCurrentUsername();
+        PartnerValidation validation = PartnerValidation.builder()
+                .partner(savedPartner)
+                .workflowStatus("PENDING")
+                .actionType("CREATE")
+                .createdBy(username)
+                .build();
+        partnerValidationRepository.save(validation);
+        log.info("Auto-created PENDING validation for new partner {} by user {}", savedPartner.getName(), username);
+
         return ResponseEntity.ok(ApiResponse.success("Partner created successfully.", partnerMapper.toResponseDto(savedPartner)));
     }
 
@@ -68,6 +87,18 @@ public class PartnerServiceImpl implements PartnerService {
                         "Cannot update. No partner found with reference number: " + partnerRequestDto.getPartnerReferenceNumber()
                 ));
         Partner updated = partnerRepository.save(updatePartnerFromDto(partner, partnerRequestDto));
+
+        // Auto-create a PENDING validation for the update (requires re-validation)
+        String username = getCurrentUsername();
+        PartnerValidation validation = PartnerValidation.builder()
+                .partner(updated)
+                .workflowStatus("PENDING")
+                .actionType("UPDATE")
+                .createdBy(username)
+                .build();
+        partnerValidationRepository.save(validation);
+        log.info("Auto-created PENDING validation for updated partner {} by user {}", updated.getName(), username);
+
         return ResponseEntity.ok(ApiResponse.success("Partner updated successfully.", partnerMapper.toResponseDto(updated)));
     }
 
@@ -153,6 +184,11 @@ public class PartnerServiceImpl implements PartnerService {
         partner.setCommissionMinWallet(dto.getCommissionMinWallet());
         partner.setCommissionMaxWallet(dto.getCommissionMaxWallet());
         return partner;
+    }
+
+    private String getCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null ? auth.getName() : "system";
     }
 
 }

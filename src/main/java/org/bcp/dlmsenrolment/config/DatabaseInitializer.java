@@ -192,6 +192,51 @@ public class DatabaseInitializer implements ApplicationRunner {
             .isActive(true)
             .build());
 
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_SUBMIT")
+            .endpoint("/v1/validations/partners/{id}/submit")
+            .httpMethod("POST")
+            .description("Submit partner for validation")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_REJECT")
+            .endpoint("/v1/validations/{id}/reject")
+            .httpMethod("POST")
+            .description("Reject partner validation")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_VALIDATION_LIST")
+            .endpoint("/v1/validations/pending")
+            .httpMethod("GET")
+            .description("List pending validations")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("AUDIT_LOG_VIEW")
+            .endpoint("/admin/audit-logs")
+            .httpMethod("GET")
+            .description("View audit logs")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_EXPORT")
+            .endpoint("/v1/export/partners")
+            .httpMethod("GET")
+            .description("Export partners to CSV")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
         // Transfer Permissions
         permissions.add(Permission.builder()
             .permissionName("TRANSFER_CREATE")
@@ -295,7 +340,8 @@ public class DatabaseInitializer implements ApplicationRunner {
         roleRepository.save(saisieRole);
 
         assignPermissionsToRole(saisieRole, "PARTNER_CREATE", "PARTNER_LIST_ALL", 
-            "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "TRANSFER_CREATE", "TRANSFER_VIEW_OWN");
+            "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "TRANSFER_CREATE", "TRANSFER_VIEW_OWN",
+            "PARTNER_SUBMIT");
         log.info("Created role: PROFIL_SAISIE");
 
         // Role 2: PROFIL_VALIDATEUR - Validator (Can validate all partner/transfer records)
@@ -307,7 +353,8 @@ public class DatabaseInitializer implements ApplicationRunner {
         roleRepository.save(validateurRole);
 
         assignPermissionsToRole(validateurRole, "PARTNER_LIST_ALL", "PARTNER_VALIDATE",
-            "TRANSFER_LIST_ALL", "TRANSFER_VALIDATE", "REPORT_EXPORT");
+            "TRANSFER_LIST_ALL", "TRANSFER_VALIDATE", "REPORT_EXPORT",
+            "PARTNER_REJECT", "PARTNER_VALIDATION_LIST", "PARTNER_EXPORT");
         log.info("Created role: PROFIL_VALIDATEUR");
 
         // Role 3: PROFIL_CONSULTATION - Consultation (Read-only access)

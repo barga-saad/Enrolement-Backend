@@ -1,0 +1,230 @@
+================================================================================
+  PLAN DE COMPLETION - API TRANSACTIONNELLE - ENROLEMENT PARTENAIRE / CLIENT
+  SFD v1.05 (10-03-2026) vs Etat actuel du projet
+================================================================================
+
+LEGENDE:
+  [OK]     = Implementé et conforme au SFD
+  [PARTIEL]= Partiellement implementé
+  [MANQUE] = Absent du projet, requis par le SFD
+  [BUG]    = Existe mais ne fonctionne pas correctement
+
+================================================================================
+  A. WORKFLOW DE VALIDATION (CRITIQUE - Section 2.1.4 du SFD)
+================================================================================
+
+  [MANQUE] 1. Statut de workflow sur Partner entity
+           Le SFD exige un cycle: BROUILLON → EN_ATTENTE → VALIDE / REJETE
+           Actuellement: seulement partnerStatus (boolean active/inactive)
+           → Ajouter champ "workflowStatus" (enum: DRAFT, PENDING, VALIDATED, REJECTED)
+
+  [MANQUE] 2. Champs d'audit workflow sur Partner entity
+           → createdBy (String - username du saisisseur)
+           → validatedBy (String - username du valideur)
+           → validatedAt (LocalDateTime)
+           → rejectionReason (String - motif de rejet)
+
+  [MANQUE] 3. Principe des 4 yeux (Double validation)
+           Le saisisseur ne peut PAS valider sa propre saisie
+           → Le backend doit vérifier que validatedBy != createdBy
+
+  [MANQUE] 4. Endpoints backend de validation
+           → POST /v1/validate/partners/{id}   (approuver)
+           → POST /v1/reject/partners/{id}     (rejeter avec motif)
+           → GET  /v1/pending/partners          (liste des partenaires en attente)
+
+  [MANQUE] 5. Frontend - Ecran de validation (Ecran-5 du SFD)
+           → Liste des saisies en attente avec colonnes: ID Client, Nom, Date Saisie, Statut, Action
+           → Bouton "A valider" qui ouvre la fiche en lecture seule
+           → Boutons "Valider" et "Rejeter" sur la fiche
+
+  [MANQUE] 6. Frontend - Bouton "Brouillon" sur le formulaire de saisie
+           → Sauvegarder en brouillon sans soumettre pour validation
+
+================================================================================
+  B. CHAMPS ENTITY PARTNER MANQUANTS (Section 2.1.2 - Ecran-3 du SFD)
+================================================================================
+
+  --- Transferts en devise - Réception ---
+  [MANQUE] 7.  autoriserReception (boolean) - Autoriser la réception en devise
+  [MANQUE] 8.  devisesReception (String) - Devises autorisées (EUR, USD...)
+  [MANQUE] 9.  plafondReception (BigDecimal) - Plafond réception en devise
+
+  --- Transferts en devise - Émission ---
+  [MANQUE] 10. autoriserEmission (boolean) - Autoriser l'émission en devise
+  [MANQUE] 11. typeTransactionEmission (String) - Type de transaction (International)
+  [MANQUE] 12. autorisationOC (boolean) - Autorisation OC (Switch Oui/Non)
+  [MANQUE] 13. refAutorisationOC (String) - N° ref autorisation
+  [MANQUE] 14. devisesEmission (String) - Devises émission (EUR, USD...)
+  [MANQUE] 15. natureCoursChangeEmission (String) - Nature cours de change
+  [MANQUE] 16. plafondMontantDevise (BigDecimal) - Plafond montant avec devise
+
+  --- Devise d'initiation de l'ordre ---
+  [OK]     17. devisePrincipale = mainCurrency (existe)
+  [OK]     18. natureTauxChange = exchangeRateNature (existe)
+
+  --- Conformité - Bloc A (Donneur d'ordre) ---
+  [MANQUE] 19. conformiteDOTypePiece (boolean) - Type pièce d'identité obligatoire
+  [MANQUE] 20. conformiteDONumPiece (boolean) - N° pièce d'identité obligatoire
+  [MANQUE] 21. conformiteDOVilleResidence (boolean) - Ville de résidence obligatoire
+
+  --- Conformité - Bloc B (Bénéficiaire) ---
+  [MANQUE] 22. conformiteBenefTypePiece (boolean) - Type pièce d'identité obligatoire
+  [MANQUE] 23. conformiteBenefNumPiece (boolean) - N° pièce d'identité obligatoire
+  [MANQUE] 24. conformiteBenefAdresse (boolean) - Adresse complète obligatoire
+
+  --- Facturation / Tarification (Section 2.1.5 du SFD) ---
+  [OK]     25. subscriptionFee (existe)
+  [OK]     26. subscriptionPeriodicity (existe)
+  [MANQUE] 27. setupFee (BigDecimal) - Frais de mise en service (facturation unique)
+  [MANQUE] 28. setupFeeBilled (boolean) - Si frais setup déjà facturés
+  [MANQUE] 29. billingMode (String) - Mode facturation: PAR_TRANSACTION / MENSUELLE / LES_DEUX
+  [MANQUE] 30. derogation (boolean) - Dérogation tarifaire accordée
+  [MANQUE] 31. derogationDetails (String) - Détails de la dérogation
+
+================================================================================
+  C. SIDEBAR / MENU NAVIGATION (Section 2.1.1 - Ecran-2 du SFD)
+================================================================================
+
+  Le SFD exige un menu avec exactement ces entrées:
+
+  GESTION PARTENAIRES:
+  [MANQUE] 32. Menu "Saisie nouveau Partenaire/Client" (visible par: Saisie, Admin)
+  [MANQUE] 33. Menu "Modification Partenaire/Client" (visible par: Saisie, Admin)
+  [MANQUE] 34. Menu "Validation Partenaire/Client" (visible par: Validateur, Admin)
+  [MANQUE] 35. Menu "Consultation Partenaire/Client" (visible par: Consultation, Admin, tous)
+
+  ADMINISTRATION:
+  [OK]     36. Menu "Administration des profils" (Users + Roles pages - Admin only)
+
+  Actuellement: un seul menu "Partners" qui combine tout.
+  → Séparer en 4 sous-menus selon les rôles
+
+================================================================================
+  D. FORMULAIRE FRONTEND - SECTIONS MANQUANTES (Ecran-3 du SFD)
+================================================================================
+
+  [OK]     37. Bloc A - Identité partenaire (code, nom, type, statut)
+  [OK]     38. Bloc B - Informations légales (pays, classification)
+  [OK]     39. Coordonnées Bancaires (numéro de compte principal)
+  [OK]     40. Types de transaction (6 types avec toggle + plafond)
+  [MANQUE] 41. Section "Transferts en devise (Réception)" avec toggle + devises + plafond
+  [MANQUE] 42. Section "Transferts en devise (Émission)" avec 7 champs
+  [PARTIEL]43. Section "Devise d'initiation" - mainCurrency existe, mais pas dans section séparée
+  [MANQUE] 44. Section "Facturation" - frais setup, mode facturation, dérogation
+  [MANQUE] 45. Section "Conformité" - Bloc A (Donneur d'ordre) + Bloc B (Bénéficiaire)
+  [MANQUE] 46. Bouton "Brouillon" (sauvegarder sans soumettre)
+  [OK]     47. Bouton "Annuler"
+  [OK]     48. Bouton "Sauvegarder" (enregistrer et soumettre)
+
+================================================================================
+  E. ECRAN MODIFICATION (Section 2.1.3 - Ecran-4 du SFD)
+================================================================================
+
+  [PARTIEL]49. Mode édition existe (viewMode='edit') mais:
+  [MANQUE]    → Code partenaire doit être en lecture seule (non modifiable)
+  [MANQUE]    → Doit charger les données existantes du partenaire
+  [MANQUE]    → La modification doit aussi passer par validation (4 yeux)
+
+================================================================================
+  F. ECRAN CONSULTATION (Section 2.1.6 - Ecran-6 du SFD)
+================================================================================
+
+  [PARTIEL]50. Mode consultation existe (viewMode='consult') mais:
+  [MANQUE]    → Todos les champs doivent être grisés (lecture seule)
+  [MANQUE]    → Doit utiliser le même formulaire que la saisie (pas un résumé simplifié)
+  [MANQUE]    → Liste séparée avec bouton "À Consulter" par partenaire
+
+================================================================================
+  G. DESACTIVATION (Section 2.1.5 du SFD)
+================================================================================
+
+  [MANQUE] 51. Désactivation via l'écran de modification
+           → Basculer status de "Actif" à "Inactif"
+           → Doit passer par saisie + validation (2 étapes)
+           → Pas de suppression physique
+
+================================================================================
+  H. PISTE D'AUDIT ET JOURNALISATION (Section 2.3 du SFD)
+================================================================================
+
+  [OK]     52. Backend: AuditLog entity existe (immutable, INSERT-only)
+  [MANQUE] 53. Backend: Endpoint GET /audit-logs pour consulter les logs
+  [MANQUE] 54. Backend: Les événements partenaires ne sont PAS enregistrés automatiquement
+               → Ajouter logging dans PartnerService (create, update, validate, reject, deactivate)
+  [MANQUE] 55. Frontend: Page "Piste d'audit" pour consulter l'historique
+               → Filtre par agent, date, type d'événement
+  [MANQUE] 56. Chaque log doit contenir: agent responsable, heure, événement détaillé
+
+================================================================================
+  I. EXPORT / EXTRACTION (Section 2.4 du SFD)
+================================================================================
+
+  [MANQUE] 57. Export CSV - Extraction des données partenaires
+  [MANQUE] 58. Export PDF - Rapports officiels et archivage
+  [MANQUE] 59. Backend endpoint: GET /v1/export/partners?format=csv
+  [MANQUE] 60. Backend endpoint: GET /v1/export/partners?format=pdf
+  [MANQUE] 61. Frontend: Bouton Download fonctionnel (existe mais sans handler)
+
+================================================================================
+  J. GESTION DES HABILITATIONS (Section 2.5 du SFD)
+================================================================================
+
+  [OK]     62. 4 rôles définis: PROFIL_SAISIE, PROFIL_VALIDATEUR, PROFIL_CONSULTATION, PROFIL_ADMIN_CENTRAL
+  [OK]     63. RBAC avec permissions par endpoint
+  [OK]     64. Administration des profils (UsersPage + RolesPage)
+  [PARTIEL]65. Séparation des tâches saisie/validation
+               → Rôles existent mais workflow non implémenté
+
+================================================================================
+  K. ELEMENTS EXISTANTS CONFORMES AU SFD
+================================================================================
+
+  [OK] Ecran d'authentification (LoginPage) avec login + mot de passe
+  [OK] Possibilité de redéfinir le mot de passe (ChangePasswordPage)
+  [OK] 4 rôles fonctionnels (conformes au tableau page 13 du SFD)
+  [OK] Identifiant unique partenaire (partnerReferenceNumber)
+  [OK] 6 types de transaction avec toggles et plafonds
+  [OK] Commission par type de transaction (flat, pourcentage, hybride)
+  [OK] Facturation mensuelle / par transaction (monthlyBilling, immediateDebit)
+  [OK] Frais d'abonnement (subscriptionFee, subscriptionPeriodicity)
+  [OK] Keycloak/LDAP pour authentification
+  [OK] AuditLog entity backend
+
+================================================================================
+  L. ORDRE DE PRIORITE RECOMMANDE
+================================================================================
+
+  PHASE 1 - CRITIQUE (workflow validation):
+    → Items 1-6: Workflow de validation (statut, endpoints, 4 yeux)
+    → Items 32-35: Sidebar avec menus séparés par rôle
+
+  PHASE 2 - HAUTE (champs manquants):
+    → Items 7-16: Transferts en devise (réception + émission)
+    → Items 19-24: Conformité (Bloc A + Bloc B)
+    → Items 27-31: Facturation
+    → Items 41-46: Sections formulaire frontend
+
+  PHASE 3 - MOYENNE (fonctionnalités):
+    → Items 49-50: Ecrans modification/consultation améliorés
+    → Items 51: Désactivation avec workflow
+    → Items 53-56: Audit log (backend + frontend)
+    → Items 57-61: Export CSV/PDF
+
+  PHASE 4 - FINITION:
+    → Tests unitaires et d'intégration
+    → Performance et pagination
+    → Documentation API (Swagger)
+
+================================================================================
+  RESUME CHIFFRE
+================================================================================
+
+  Total items SFD:           65
+  Implementés [OK]:          18  (28%)
+  Partiels [PARTIEL]:         5  ( 8%)
+  Manquants [MANQUE]:        42  (64%)
+
+  Conformité globale au SFD: ~35%
+
+================================================================================
