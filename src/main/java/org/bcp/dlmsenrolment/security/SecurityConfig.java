@@ -12,6 +12,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.bcp.dlmsenrolment.config.RequestLoggingFilter;
 
 import java.util.Arrays;
 
@@ -55,6 +56,7 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final RequestLoggingFilter requestLoggingFilter;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final PermissionAuthorizationFilter permissionAuthorizationFilter;
 
@@ -124,6 +126,7 @@ public class SecurityConfig {
 
                 // ===== CUSTOM FILTERS =====
                 // Add our custom filters to the chain
+                .addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(permissionAuthorizationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -159,9 +162,14 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(Arrays.asList(
             "Authorization",
             "Content-Type",
+            "X-Request-Id",
             "X-Requested-With",
             "Accept",
             "Access-Control-Allow-Origin"
+        ));
+
+        configuration.setExposedHeaders(Arrays.asList(
+            "X-Request-Id"
         ));
         
         configuration.setAllowCredentials(true);
