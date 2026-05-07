@@ -81,7 +81,7 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
             if (authentication != null && authentication.isAuthenticated()) {
-                String username = authentication.getName();
+                String username = SecurityUtils.getCurrentUsername();
                 String endpoint = request.getRequestURI();
                 String httpMethod = request.getMethod();
 

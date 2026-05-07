@@ -80,12 +80,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         if (authentication == null || !authentication.isAuthenticated()) {
             return "anonymous";
         }
-
-        String name = authentication.getName();
+        String name = org.bcp.dlmsenrolment.security.SecurityUtils.getUsername(authentication);
         if (name == null || name.isBlank() || "anonymousUser".equalsIgnoreCase(name)) {
             return "anonymous";
         }
-
         return name;
     }
 }

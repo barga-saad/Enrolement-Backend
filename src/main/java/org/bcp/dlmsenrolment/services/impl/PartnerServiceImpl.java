@@ -6,20 +6,18 @@ import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.entities.Partner;
 import org.bcp.dlmsenrolment.entities.PartnerValidation;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
-import org.bcp.dlmsenrolment.excptions.PartnerAlreadyExistsException;
 import org.bcp.dlmsenrolment.excptions.PartnerNotFoundException;
 import org.bcp.dlmsenrolment.mappers.PartnerMapper;
 import org.bcp.dlmsenrolment.repositories.PartnerRepository;
 import org.bcp.dlmsenrolment.repositories.PartnerValidationRepository;
+import org.bcp.dlmsenrolment.security.SecurityUtils;
+import org.bcp.dlmsenrolment.services.PartnerReferenceNumberService;
 import org.bcp.dlmsenrolment.services.PartnerService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 
 @Slf4j
 @Service
@@ -28,12 +26,16 @@ public class PartnerServiceImpl implements PartnerService {
     private final PartnerRepository partnerRepository;
     private final PartnerMapper partnerMapper;
     private final PartnerValidationRepository partnerValidationRepository;
+    private final PartnerReferenceNumberService referenceNumberService;
 
-    public PartnerServiceImpl(PartnerRepository partnerRepository, PartnerMapper partnerMapper,
-                              PartnerValidationRepository partnerValidationRepository) {
+    public PartnerServiceImpl(PartnerRepository partnerRepository,
+                              PartnerMapper partnerMapper,
+                              PartnerValidationRepository partnerValidationRepository,
+                              PartnerReferenceNumberService referenceNumberService) {
         this.partnerRepository = partnerRepository;
         this.partnerMapper = partnerMapper;
         this.partnerValidationRepository = partnerValidationRepository;
+        this.referenceNumberService = referenceNumberService;
     }
     @Override
     public ResponseEntity<ApiResponse<PartnerResponseDto>> getPartner(String referenceNumber) {
@@ -45,39 +47,46 @@ public class PartnerServiceImpl implements PartnerService {
     }
 
     @Override
-    public ResponseEntity<ApiResponse<List<PartnerRequestDto>>> getPartners() {
+    public ResponseEntity<ApiResponse<List<PartnerResponseDto>>> getPartners() {
         List<Partner> partners = partnerRepository.findAll();
-
-        List<PartnerRequestDto> partnerRequestDtos = partners.stream()
-                .map(partnerMapper::toRequestDto)
+        List<PartnerResponseDto> dtos = partners.stream()
+                .map(partnerMapper::toResponseDto)
                 .toList();
-
-        return ResponseEntity.ok(ApiResponse.success("Partners retrieved successfully.", partnerRequestDtos));
+        return ResponseEntity.ok(ApiResponse.success("Partners retrieved successfully.", dtos));
     }
 
 
     @Override
     public ResponseEntity<ApiResponse<PartnerResponseDto>> createPartner(PartnerRequestDto partnerRequestDto) {
-        Optional<Partner> existing = partnerRepository.findByPartnerReferenceNumber(partnerRequestDto.getPartnerReferenceNumber());
-        if (existing.isPresent()){
-            throw new PartnerAlreadyExistsException(
-                    "Partner already exists with reference number: " + partnerRequestDto.getPartnerReferenceNumber()
-            );
-        }
-        Partner savedPartner = partnerRepository.save(partnerMapper.toEntity(partnerRequestDto));
+        // Auto-generate unique sequential reference number (042999 + 1 = 043000, ...)
+        String refNumber = referenceNumberService.generateNextReferenceNumber();
 
-        // Auto-create a PartnerValidation record with status PENDING
+        Partner partner = partnerMapper.toEntity(partnerRequestDto);
+        partner.setPartnerReferenceNumber(refNumber);
+
         String username = getCurrentUsername();
+        partner.setCreatedBy(username);
+        partner.setWorkflowStatus("DRAFT");
+        if (partner.getEnrollmentType() == null) {
+            partner.setEnrollmentType("PARTNER");
+        }
+
+        Partner savedPartner = partnerRepository.save(partner);
+
+        // Auto-create a DRAFT validation record
         PartnerValidation validation = PartnerValidation.builder()
                 .partner(savedPartner)
-                .workflowStatus("PENDING")
+                .workflowStatus("DRAFT")
                 .actionType("CREATE")
                 .createdBy(username)
                 .build();
         partnerValidationRepository.save(validation);
-        log.info("Auto-created PENDING validation for new partner {} by user {}", savedPartner.getName(), username);
+        log.info("Created {} '{}' ref={} by user {}",
+                savedPartner.getEnrollmentType(), savedPartner.getName(), refNumber, username);
 
-        return ResponseEntity.ok(ApiResponse.success("Partner created successfully.", partnerMapper.toResponseDto(savedPartner)));
+        return ResponseEntity.ok(ApiResponse.success(
+                savedPartner.getEnrollmentType() + " created successfully.",
+                partnerMapper.toResponseDto(savedPartner)));
     }
 
     @Override
@@ -183,12 +192,46 @@ public class PartnerServiceImpl implements PartnerService {
         partner.setCommissionRateWallet(dto.getCommissionRateWallet());
         partner.setCommissionMinWallet(dto.getCommissionMinWallet());
         partner.setCommissionMaxWallet(dto.getCommissionMaxWallet());
+
+        // Enrollment type (do not override with null)
+        if (dto.getEnrollmentType() != null) partner.setEnrollmentType(dto.getEnrollmentType());
+
+        // Forex - Reception
+        partner.setAutoriserReception(dto.getAutoriserReception());
+        partner.setDevisesReception(dto.getDevisesReception());
+        partner.setPlafondReception(dto.getPlafondReception());
+
+        // Forex - Emission
+        partner.setAutoriserEmission(dto.getAutoriserEmission());
+        partner.setTypeTransactionEmission(dto.getTypeTransactionEmission());
+        partner.setAutorisationOC(dto.getAutorisationOC());
+        partner.setRefAutorisationOC(dto.getRefAutorisationOC());
+        partner.setDevisesEmission(dto.getDevisesEmission());
+        partner.setNatureCoursChangeEmission(dto.getNatureCoursChangeEmission());
+        partner.setPlafondMontantDevise(dto.getPlafondMontantDevise());
+
+        // Conformité Bloc A
+        partner.setConformiteDOTypePiece(dto.getConformiteDOTypePiece());
+        partner.setConformiteDONumPiece(dto.getConformiteDONumPiece());
+        partner.setConformiteDOVilleResidence(dto.getConformiteDOVilleResidence());
+
+        // Conformité Bloc B
+        partner.setConformiteBenefTypePiece(dto.getConformiteBenefTypePiece());
+        partner.setConformiteBenefNumPiece(dto.getConformiteBenefNumPiece());
+        partner.setConformiteBenefAdresse(dto.getConformiteBenefAdresse());
+
+        // Facturation
+        partner.setSetupFee(dto.getSetupFee());
+        partner.setSetupFeeBilled(dto.getSetupFeeBilled());
+        partner.setBillingMode(dto.getBillingMode());
+        partner.setDerogation(dto.getDerogation());
+        partner.setDerogationDetails(dto.getDerogationDetails());
+
         return partner;
     }
 
     private String getCurrentUsername() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return auth != null ? auth.getName() : "system";
+        return SecurityUtils.getCurrentUsername();
     }
 
 }

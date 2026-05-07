@@ -103,4 +103,39 @@ public class PartnerRequestDto {
     private BigDecimal commissionRateWallet = BigDecimal.ZERO;
     private BigDecimal commissionMinWallet;
     private BigDecimal commissionMaxWallet;
+
+    // ===== ENROLLMENT TYPE =====
+    // "PARTNER" (default) or "CLIENT" — controls which form sections are active
+    private String enrollmentType = "PARTNER";
+
+    // ===== FOREX - RECEPTION (Partner only) =====
+    private Boolean autoriserReception = false;
+    private String devisesReception;           // e.g. "EUR,USD,GBP"
+    private BigDecimal plafondReception;
+
+    // ===== FOREX - EMISSION (Partner only) =====
+    private Boolean autoriserEmission = false;
+    private String typeTransactionEmission;    // e.g. "International"
+    private Boolean autorisationOC = false;
+    private String refAutorisationOC;
+    private String devisesEmission;            // e.g. "EUR,USD"
+    private String natureCoursChangeEmission;
+    private BigDecimal plafondMontantDevise;
+
+    // ===== CONFORMITE - BLOC A (Donneur d'ordre) =====
+    private Boolean conformiteDOTypePiece = false;
+    private Boolean conformiteDONumPiece = false;
+    private Boolean conformiteDOVilleResidence = false;
+
+    // ===== CONFORMITE - BLOC B (Beneficiaire) =====
+    private Boolean conformiteBenefTypePiece = false;
+    private Boolean conformiteBenefNumPiece = false;
+    private Boolean conformiteBenefAdresse = false;
+
+    // ===== FACTURATION =====
+    private BigDecimal setupFee;
+    private Boolean setupFeeBilled = false;
+    private String billingMode;           // PAR_TRANSACTION | MENSUELLE | LES_DEUX
+    private Boolean derogation = false;
+    private String derogationDetails;
 }

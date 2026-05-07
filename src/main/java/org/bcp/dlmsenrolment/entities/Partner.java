@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -220,5 +221,105 @@ public class Partner {
 
     @Column(name = "commission_max_wallet")
     private BigDecimal commissionMaxWallet;
+
+    // ===== ENROLLMENT TYPE =====
+    // columnDefinition with DEFAULT ensures existing rows are backfilled when Hibernate adds the column via ddl-auto=update
+    @Column(name = "enrollment_type", nullable = false, length = 20,
+            columnDefinition = "varchar(20) default 'PARTNER'")
+    private String enrollmentType = "PARTNER"; // PARTNER | CLIENT
+
+    // ===== WORKFLOW STATUS (denormalized for fast queries) =====
+    @Column(name = "workflow_status", length = 20,
+            columnDefinition = "varchar(20) default 'DRAFT'")
+    private String workflowStatus = "DRAFT"; // DRAFT, PENDING, VALIDATED, REJECTED
+
+    // ===== AUDIT FIELDS =====
+    @Column(name = "created_by", length = 100)
+    private String createdBy;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // ===== FOREX - RECEPTION =====
+    @Column(name = "autoriser_reception")
+    private Boolean autoriserReception = false;
+
+    @Column(name = "devises_reception", length = 200)
+    private String devisesReception;
+
+    @Column(name = "plafond_reception", precision = 18, scale = 2)
+    private BigDecimal plafondReception;
+
+    // ===== FOREX - EMISSION =====
+    @Column(name = "autoriser_emission")
+    private Boolean autoriserEmission = false;
+
+    @Column(name = "type_transaction_emission", length = 100)
+    private String typeTransactionEmission;
+
+    @Column(name = "autorisation_oc")
+    private Boolean autorisationOC = false;
+
+    @Column(name = "ref_autorisation_oc", length = 100)
+    private String refAutorisationOC;
+
+    @Column(name = "devises_emission", length = 200)
+    private String devisesEmission;
+
+    @Column(name = "nature_cours_change_emission", length = 100)
+    private String natureCoursChangeEmission;
+
+    @Column(name = "plafond_montant_devise", precision = 18, scale = 2)
+    private BigDecimal plafondMontantDevise;
+
+    // ===== CONFORMITE - BLOC A (Donneur d'ordre) =====
+    @Column(name = "conformite_do_type_piece")
+    private Boolean conformiteDOTypePiece = false;
+
+    @Column(name = "conformite_do_num_piece")
+    private Boolean conformiteDONumPiece = false;
+
+    @Column(name = "conformite_do_ville_residence")
+    private Boolean conformiteDOVilleResidence = false;
+
+    // ===== CONFORMITE - BLOC B (Beneficiaire) =====
+    @Column(name = "conformite_benef_type_piece")
+    private Boolean conformiteBenefTypePiece = false;
+
+    @Column(name = "conformite_benef_num_piece")
+    private Boolean conformiteBenefNumPiece = false;
+
+    @Column(name = "conformite_benef_adresse")
+    private Boolean conformiteBenefAdresse = false;
+
+    // ===== FACTURATION =====
+    @Column(name = "setup_fee", precision = 18, scale = 2)
+    private BigDecimal setupFee;
+
+    @Column(name = "setup_fee_billed")
+    private Boolean setupFeeBilled = false;
+
+    @Column(name = "billing_mode", length = 50)
+    private String billingMode; // PAR_TRANSACTION | MENSUELLE | LES_DEUX
+
+    @Column(name = "derogation")
+    private Boolean derogation = false;
+
+    @Column(name = "derogation_details", length = 500)
+    private String derogationDetails;
 
 }

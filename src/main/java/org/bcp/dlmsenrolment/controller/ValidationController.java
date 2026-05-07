@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.request.RejectRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerValidationResponseDto;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
+import org.bcp.dlmsenrolment.security.SecurityUtils;
 import org.bcp.dlmsenrolment.services.PartnerValidationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -28,7 +29,7 @@ public class ValidationController {
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> submitForValidation(
             @PathVariable Long partnerId,
             Authentication authentication) {
-        String username = authentication.getName();
+        String username = SecurityUtils.getUsername(authentication);
         log.info("User {} submitting partner {} for validation", username, partnerId);
         return validationService.submitForValidation(partnerId, username);
     }
@@ -38,7 +39,7 @@ public class ValidationController {
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> saveDraft(
             @PathVariable Long partnerId,
             Authentication authentication) {
-        String username = authentication.getName();
+        String username = SecurityUtils.getUsername(authentication);
         log.info("User {} saving draft for partner {}", username, partnerId);
         return validationService.saveDraft(partnerId, username);
     }
@@ -48,7 +49,7 @@ public class ValidationController {
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> validate(
             @PathVariable Long validationId,
             Authentication authentication) {
-        String username = authentication.getName();
+        String username = SecurityUtils.getUsername(authentication);
         log.info("User {} validating validation record {}", username, validationId);
         return validationService.validate(validationId, username);
     }
@@ -59,7 +60,7 @@ public class ValidationController {
             @PathVariable Long validationId,
             @RequestBody RejectRequestDto request,
             Authentication authentication) {
-        String username = authentication.getName();
+        String username = SecurityUtils.getUsername(authentication);
         log.info("User {} rejecting validation record {} - reason: {}", username, validationId, request.getReason());
         return validationService.reject(validationId, username, request.getReason());
     }
@@ -75,7 +76,7 @@ public class ValidationController {
     @Operation(summary = "Get my drafts", description = "Returns drafts of the current user")
     public ResponseEntity<ApiResponse<List<PartnerValidationResponseDto>>> getDrafts(
             Authentication authentication) {
-        String username = authentication.getName();
+        String username = SecurityUtils.getUsername(authentication);
         log.info("User {} fetching drafts", username);
         return validationService.getDrafts(username);
     }

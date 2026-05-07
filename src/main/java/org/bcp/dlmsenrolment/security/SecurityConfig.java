@@ -7,6 +7,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -112,8 +114,9 @@ public class SecurityConfig {
 
                 // ===== OAUTH2 RESOURCE SERVER =====
                 // Validates JWT tokens using Keycloak's public key
+                // jwtAuthenticationConverter() extracts 'preferred_username' as the principal name
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(withDefaults())
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 )
 
                 // ===== CORS =====
@@ -178,6 +181,26 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    /**
+     * JwtAuthenticationConverter — extracts 'preferred_username' from Keycloak JWT
+     * as the principal name instead of the default 'sub' (UUID).
+     *
+     * Without this, authentication.getName() returns the Keycloak user UUID.
+     * With this, authentication.getName() returns the human-readable username.
+     */
+    @Bean
+    public JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+        authoritiesConverter.setAuthorityPrefix("ROLE_");
+        authoritiesConverter.setAuthoritiesClaimName("realm_access.roles");
+
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        // Use 'preferred_username' claim as the principal name (instead of 'sub' UUID)
+        converter.setPrincipalClaimName("preferred_username");
+        return converter;
     }
 }
 

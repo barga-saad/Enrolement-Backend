@@ -8,6 +8,7 @@ import org.bcp.dlmsenrolment.dtos.request.AssignRoleToUserRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.UserCreateRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.UserUpdateRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.UserResponseDto;
+import org.bcp.dlmsenrolment.security.SecurityUtils;
 import org.bcp.dlmsenrolment.services.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -48,7 +49,7 @@ public class AdminUserController {
             @Valid @RequestBody UserCreateRequestDto request,
             Authentication authentication) {
         log.info("Creating user: {}", request.getUsername());
-        String createdByUsername = authentication.getName();
+        String createdByUsername = SecurityUtils.getUsername(authentication);
         UserResponseDto response = userService.createUser(request, createdByUsername);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -97,7 +98,7 @@ public class AdminUserController {
             @PathVariable Long id,
             Authentication authentication) {
         log.warn("Deleting user: {}", id);
-        String deletedByUsername = authentication.getName();
+        String deletedByUsername = SecurityUtils.getUsername(authentication);
         userService.deleteUser(id, deletedByUsername);
         return ResponseEntity.noContent().build();
     }
@@ -112,7 +113,7 @@ public class AdminUserController {
             @Valid @RequestBody AssignRoleToUserRequestDto request,
             Authentication authentication) {
         log.info("Assigning role {} to user {}", request.getRoleId(), userId);
-        String assignedByUsername = authentication.getName();
+        String assignedByUsername = SecurityUtils.getUsername(authentication);
         userService.assignRoleToUser(userId, request.getRoleId(), assignedByUsername);
         return ResponseEntity.noContent().build();
     }
@@ -127,7 +128,7 @@ public class AdminUserController {
             @PathVariable Long roleId,
             Authentication authentication) {
         log.info("Revoking role {} from user {}", roleId, userId);
-        String revokedByUsername = authentication.getName();
+        String revokedByUsername = SecurityUtils.getUsername(authentication);
         userService.revokeRoleFromUser(userId, roleId, revokedByUsername);
         return ResponseEntity.noContent().build();
     }

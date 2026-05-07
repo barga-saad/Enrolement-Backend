@@ -9,7 +9,7 @@ import java.util.List;
 
 public interface PartnerService {
     ResponseEntity<ApiResponse<PartnerResponseDto>> getPartner(String referenceNumber);
-    ResponseEntity<ApiResponse<List<PartnerRequestDto>>> getPartners();
+    ResponseEntity<ApiResponse<List<PartnerResponseDto>>> getPartners();
     ResponseEntity<ApiResponse<PartnerResponseDto>> createPartner(PartnerRequestDto partnerRequestDto);
     ResponseEntity<ApiResponse<PartnerResponseDto>> updatePartner(PartnerRequestDto partnerRequestDto);
     ResponseEntity<ApiResponse<PartnerResponseDto>> deletePartner(String referenceNumber);

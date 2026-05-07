@@ -34,12 +34,25 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
         Partner partner = partnerRepository.findById(partnerId)
                 .orElseThrow(() -> new PartnerNotFoundException("No partner found with id: " + partnerId));
 
-        PartnerValidation validation = PartnerValidation.builder()
-                .partner(partner)
-                .workflowStatus("PENDING")
-                .actionType("CREATE")
-                .createdBy(username)
-                .build();
+        // Transition existing DRAFT validation to PENDING (avoid duplicate records)
+        List<PartnerValidation> drafts = validationRepository.findByPartnerIdAndWorkflowStatus(partnerId, "DRAFT");
+        PartnerValidation validation;
+        if (!drafts.isEmpty()) {
+            validation = drafts.get(0);
+            validation.setWorkflowStatus("PENDING");
+            validation.setCreatedBy(username);
+        } else {
+            validation = PartnerValidation.builder()
+                    .partner(partner)
+                    .workflowStatus("PENDING")
+                    .actionType("CREATE")
+                    .createdBy(username)
+                    .build();
+        }
+
+        // Update partner status to PENDING
+        partner.setWorkflowStatus("PENDING");
+        partnerRepository.save(partner);
 
         PartnerValidation saved = validationRepository.save(validation);
         log.info("User {} submitted partner {} for validation", username, partnerId);
@@ -90,6 +103,12 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
         validation.setValidatedAt(LocalDateTime.now());
 
         PartnerValidation saved = validationRepository.save(validation);
+
+        // Update the partner's own workflow status
+        Partner partner = saved.getPartner();
+        partner.setWorkflowStatus("VALIDATED");
+        partnerRepository.save(partner);
+
         log.info("User {} validated partner validation {}", validatorUsername, validationId);
 
         logAudit(validatorUsername, "VALIDATE", "PARTNER_VALIDATION", saved.getId(),
@@ -121,6 +140,12 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
         validation.setRejectionReason(reason);
 
         PartnerValidation saved = validationRepository.save(validation);
+
+        // Reset partner status to DRAFT so the saisie user can resubmit
+        Partner partner = saved.getPartner();
+        partner.setWorkflowStatus("DRAFT");
+        partnerRepository.save(partner);
+
         log.info("User {} rejected partner validation {} - reason: {}", validatorUsername, validationId, reason);
 
         logAudit(validatorUsername, "REJECT", "PARTNER_VALIDATION", saved.getId(),

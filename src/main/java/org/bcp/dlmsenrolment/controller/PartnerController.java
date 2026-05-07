@@ -7,6 +7,7 @@ import org.bcp.dlmsenrolment.dtos.request.PartnerRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.dtos.respons.TransferResponseDto;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
+import org.bcp.dlmsenrolment.security.SecurityUtils;
 import org.bcp.dlmsenrolment.services.PartnerService;
 import org.bcp.dlmsenrolment.services.TransferService;
 import org.springframework.http.ResponseEntity;
@@ -84,7 +85,7 @@ public class PartnerController {
     public ResponseEntity<ApiResponse<PartnerResponseDto>> getPartner(
             @PathVariable String partnerId,
             Authentication authentication) {
-        log.info("User {} requested partner: {}", authentication.getName(), partnerId);
+        log.info("User {} requested partner: {}", SecurityUtils.getUsername(authentication), partnerId);
         return partnerService.getPartner(partnerId);
     }
 
@@ -106,7 +107,7 @@ public class PartnerController {
     public ResponseEntity<ApiResponse<List<TransferResponseDto>>> getAllTransfer(
             @PathVariable String partnerId,
             Authentication authentication) {
-        log.info("User {} requested transfers for partner: {}", authentication.getName(), partnerId);
+        log.info("User {} requested transfers for partner: {}", SecurityUtils.getUsername(authentication), partnerId);
         return transferService.getAllTransfersByPartnerReferenceNumber(partnerId);
     }
 
@@ -126,7 +127,7 @@ public class PartnerController {
     public ResponseEntity<ApiResponse<PartnerResponseDto>> createPartner(
             @Valid @RequestBody PartnerRequestDto request,
             Authentication authentication) {
-        log.info("User {} creating new partner: {}", authentication.getName(), request.getName());
+        log.info("User {} creating new partner: {}", SecurityUtils.getUsername(authentication), request.getName());
         return partnerService.createPartner(request);
     }
 
