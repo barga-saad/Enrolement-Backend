@@ -1,13 +1,14 @@
 package org.bcp.dlmsenrolment.dtos.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
 
-
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PartnerRequestDto {
 
     private String name;
