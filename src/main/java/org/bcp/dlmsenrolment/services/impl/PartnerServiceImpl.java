@@ -213,12 +213,20 @@ public class PartnerServiceImpl implements PartnerService {
         // Conformité Bloc A
         partner.setConformiteDOTypePiece(dto.getConformiteDOTypePiece());
         partner.setConformiteDONumPiece(dto.getConformiteDONumPiece());
+        partner.setConformiteDODateNaissance(dto.getConformiteDODateNaissance());
+        partner.setConformiteDOPaysNaissance(dto.getConformiteDOPaysNaissance());
+        partner.setConformiteDOAdresse(dto.getConformiteDOAdresse());
         partner.setConformiteDOVilleResidence(dto.getConformiteDOVilleResidence());
 
         // Conformité Bloc B
         partner.setConformiteBenefTypePiece(dto.getConformiteBenefTypePiece());
         partner.setConformiteBenefNumPiece(dto.getConformiteBenefNumPiece());
         partner.setConformiteBenefAdresse(dto.getConformiteBenefAdresse());
+        partner.setConformiteBenefVilleResidence(dto.getConformiteBenefVilleResidence());
+        partner.setConformiteBenefPaysResidence(dto.getConformiteBenefPaysResidence());
+
+        // Fichier Synthèse
+        partner.setFichierSynthese(dto.getFichierSynthese());
 
         // Facturation
         partner.setSetupFee(dto.getSetupFee());

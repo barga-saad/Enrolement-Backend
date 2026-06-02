@@ -293,6 +293,15 @@ public class Partner {
     @Column(name = "conformite_do_num_piece")
     private Boolean conformiteDONumPiece = false;
 
+    @Column(name = "conformite_do_date_naissance")
+    private Boolean conformiteDODateNaissance = false;
+
+    @Column(name = "conformite_do_pays_naissance")
+    private Boolean conformiteDOPaysNaissance = false;
+
+    @Column(name = "conformite_do_adresse")
+    private Boolean conformiteDOAdresse = false;
+
     @Column(name = "conformite_do_ville_residence")
     private Boolean conformiteDOVilleResidence = false;
 
@@ -305,6 +314,16 @@ public class Partner {
 
     @Column(name = "conformite_benef_adresse")
     private Boolean conformiteBenefAdresse = false;
+
+    @Column(name = "conformite_benef_ville_residence")
+    private Boolean conformiteBenefVilleResidence = false;
+
+    @Column(name = "conformite_benef_pays_residence")
+    private Boolean conformiteBenefPaysResidence = false;
+
+    // ===== FICHIER SYNTHESE =====
+    @Column(name = "fichier_synthese")
+    private Boolean fichierSynthese = true;
 
     // ===== FACTURATION =====
     @Column(name = "setup_fee", precision = 18, scale = 2)

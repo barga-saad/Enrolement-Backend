@@ -126,12 +126,20 @@ public class PartnerRequestDto {
     // ===== CONFORMITE - BLOC A (Donneur d'ordre) =====
     private Boolean conformiteDOTypePiece = false;
     private Boolean conformiteDONumPiece = false;
+    private Boolean conformiteDODateNaissance = false;
+    private Boolean conformiteDOPaysNaissance = false;
+    private Boolean conformiteDOAdresse = false;
     private Boolean conformiteDOVilleResidence = false;
 
     // ===== CONFORMITE - BLOC B (Beneficiaire) =====
     private Boolean conformiteBenefTypePiece = false;
     private Boolean conformiteBenefNumPiece = false;
     private Boolean conformiteBenefAdresse = false;
+    private Boolean conformiteBenefVilleResidence = false;
+    private Boolean conformiteBenefPaysResidence = false;
+
+    // ===== FICHIER SYNTHESE =====
+    private Boolean fichierSynthese = true;
 
     // ===== FACTURATION =====
     private BigDecimal setupFee;

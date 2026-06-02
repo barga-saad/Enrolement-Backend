@@ -81,12 +81,20 @@ public class PartnerResponseDto {
     // ===== CONFORMITE - BLOC A =====
     private Boolean conformiteDOTypePiece;
     private Boolean conformiteDONumPiece;
+    private Boolean conformiteDODateNaissance;
+    private Boolean conformiteDOPaysNaissance;
+    private Boolean conformiteDOAdresse;
     private Boolean conformiteDOVilleResidence;
 
     // ===== CONFORMITE - BLOC B =====
     private Boolean conformiteBenefTypePiece;
     private Boolean conformiteBenefNumPiece;
     private Boolean conformiteBenefAdresse;
+    private Boolean conformiteBenefVilleResidence;
+    private Boolean conformiteBenefPaysResidence;
+
+    // ===== FICHIER SYNTHESE =====
+    private Boolean fichierSynthese;
 
     // ===== FACTURATION =====
     private BigDecimal setupFee;

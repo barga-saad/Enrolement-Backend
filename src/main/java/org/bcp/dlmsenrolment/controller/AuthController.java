@@ -278,6 +278,57 @@ public class AuthController {
         }
     }
 
+    // ──────────────────────── REFRESH TOKEN ───────────────────────────────────
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
+        String refreshToken = body.get("refreshToken");
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ResponseEntity.badRequest().body(
+                ApiResponse.error("VALIDATION_ERROR", "refreshToken is required", null));
+        }
+
+        try {
+            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+            params.add("client_id", keycloakClientId);
+            params.add("client_secret", keycloakClientSecret);
+            params.add("grant_type", "refresh_token");
+            params.add("refresh_token", refreshToken);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            var kcResponse = restTemplate.postForEntity(
+                keycloakTokenUrl,
+                new HttpEntity<>(params, headers),
+                Map.class
+            );
+
+            if (!kcResponse.getStatusCode().is2xxSuccessful() || kcResponse.getBody() == null) {
+                return ResponseEntity.status(401).body(
+                    ApiResponse.error("REFRESH_FAILED", "Token refresh failed", null));
+            }
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> tokenData = kcResponse.getBody();
+            String newAccessToken  = (String) tokenData.get("access_token");
+            String newRefreshToken = (String) tokenData.getOrDefault("refresh_token", refreshToken);
+            Long   expiresIn       = ((Number) tokenData.get("expires_in")).longValue();
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("token", newAccessToken);
+            result.put("refreshToken", newRefreshToken);
+            result.put("expiresIn", expiresIn);
+
+            log.info("Token refreshed successfully");
+            return ResponseEntity.ok(ApiResponse.success("Token refreshed", result));
+        } catch (Exception e) {
+            log.warn("Token refresh failed: {}", e.getMessage());
+            return ResponseEntity.status(401).body(
+                ApiResponse.error("REFRESH_FAILED", "Token refresh failed — please login again", null));
+        }
+    }
+
     // ──────────────────────── LOGOUT ──────────────────────────────────────────
 
     @PostMapping("/logout")
