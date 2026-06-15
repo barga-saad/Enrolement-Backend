@@ -8,6 +8,7 @@ import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.dtos.respons.TransferResponseDto;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
 import org.bcp.dlmsenrolment.security.SecurityUtils;
+import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.PartnerService;
 import org.bcp.dlmsenrolment.services.TransferService;
 import org.springframework.http.ResponseEntity;
@@ -44,10 +45,12 @@ import java.util.List;
 public class PartnerController {
     private final PartnerService partnerService;
     private final TransferService transferService;
+    private final AuditService auditService;
 
-    public PartnerController(PartnerService partnerService, TransferService transferService) {
+    public PartnerController(PartnerService partnerService, TransferService transferService, AuditService auditService) {
         this.partnerService = partnerService;
         this.transferService = transferService;
+        this.auditService = auditService;
     }
 
     /**
@@ -128,7 +131,14 @@ public class PartnerController {
             @Valid @RequestBody PartnerRequestDto request,
             Authentication authentication) {
         log.info("User {} creating new partner: {}", SecurityUtils.getUsername(authentication), request.getName());
-        return partnerService.createPartner(request);
+        ResponseEntity<ApiResponse<PartnerResponseDto>> response = partnerService.createPartner(request);
+        String actor = SecurityUtils.getUsername(authentication);
+        if (response.getBody() != null && response.getBody().getData() != null) {
+            auditService.log(actor, "CREATE_PARTNER", "PARTNER",
+                    response.getBody().getData().getId(),
+                    "Partner created: " + request.getName() + " (ref: " + request.getPartnerReferenceNumber() + ")");
+        }
+        return response;
     }
 
     /**
@@ -145,7 +155,10 @@ public class PartnerController {
     public ResponseEntity<ApiResponse<PartnerResponseDto>> updatePartner(
             @Valid @RequestBody PartnerRequestDto request) {
         log.info("Updating partner: {}", request.getPartnerReferenceNumber());
-        return partnerService.updatePartner(request);
+        ResponseEntity<ApiResponse<PartnerResponseDto>> response = partnerService.updatePartner(request);
+        auditService.log(null, "UPDATE_PARTNER", "PARTNER", null,
+                "Partner updated: ref=" + request.getPartnerReferenceNumber());
+        return response;
     }
 
     /**
@@ -162,6 +175,9 @@ public class PartnerController {
     public ResponseEntity<ApiResponse<PartnerResponseDto>> deletePartner(
             @RequestParam String partnerReferenceNumber) {
         log.info("Deleting partner: {}", partnerReferenceNumber);
-        return partnerService.deletePartner(partnerReferenceNumber);
+        ResponseEntity<ApiResponse<PartnerResponseDto>> response = partnerService.deletePartner(partnerReferenceNumber);
+        auditService.log(null, "DELETE_PARTNER", "PARTNER", null,
+                "Partner deleted: ref=" + partnerReferenceNumber);
+        return response;
     }
 }

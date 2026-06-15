@@ -3,14 +3,13 @@ package org.bcp.dlmsenrolment.services.impl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerValidationResponseDto;
-import org.bcp.dlmsenrolment.entities.AuditLog;
 import org.bcp.dlmsenrolment.entities.Partner;
 import org.bcp.dlmsenrolment.entities.PartnerValidation;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
 import org.bcp.dlmsenrolment.excptions.PartnerNotFoundException;
-import org.bcp.dlmsenrolment.repositories.AuditLogRepository;
 import org.bcp.dlmsenrolment.repositories.PartnerRepository;
 import org.bcp.dlmsenrolment.repositories.PartnerValidationRepository;
+import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.PartnerValidationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -27,7 +26,7 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
 
     private final PartnerValidationRepository validationRepository;
     private final PartnerRepository partnerRepository;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditService auditService;
 
     @Override
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> submitForValidation(Long partnerId, String username) {
@@ -77,6 +76,9 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
 
         PartnerValidation saved = validationRepository.save(validation);
         log.info("User {} saved draft for partner {}", username, partnerId);
+
+        logAudit(username, "SAVE_DRAFT", "PARTNER_VALIDATION", saved.getId(),
+                "Partner " + partner.getName() + " saved as draft by " + username);
 
         return ResponseEntity.ok(ApiResponse.success("Draft saved.", toDto(saved)));
     }
@@ -206,12 +208,6 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
     }
 
     private void logAudit(String username, String action, String entityType, Long entityId, String description) {
-        AuditLog auditLog = new AuditLog();
-        auditLog.setUsername(username);
-        auditLog.setAction(action);
-        auditLog.setEntityType(entityType);
-        auditLog.setEntityId(entityId);
-        auditLog.setDescription(description);
-        auditLogRepository.save(auditLog);
+        auditService.log(username, action, entityType, entityId, description);
     }
 }

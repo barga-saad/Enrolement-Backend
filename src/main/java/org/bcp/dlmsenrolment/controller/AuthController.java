@@ -10,6 +10,7 @@ import org.bcp.dlmsenrolment.entities.UserRole;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
 import org.bcp.dlmsenrolment.repositories.UserRepository;
 import org.bcp.dlmsenrolment.repositories.UserRoleRepository;
+import org.bcp.dlmsenrolment.services.AuditService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
@@ -42,6 +43,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final ObjectMapper objectMapper;
+    private final AuditService auditService;
 
     @Value("${keycloak.token-url:http://localhost:8081/realms/master/protocol/openid-connect/token}")
     private String keycloakTokenUrl;
@@ -157,10 +159,15 @@ public class AuthController {
             log.info("Login successful - user: {}, roles: {}, requiresPasswordChange: {}",
                 user.getUsername(), roleNames, requiresPasswordChange);
 
+            auditService.log(user.getUsername(), "LOGIN_SUCCESS", "USER", user.getId(),
+                    "User " + user.getUsername() + " logged in successfully");
+
             return ResponseEntity.ok(ApiResponse.success("Login successful", loginResponse));
 
         } catch (org.springframework.web.client.HttpClientErrorException.Unauthorized e) {
             log.warn("Invalid credentials for user: {}", loginRequest.getUsername());
+            auditService.log(loginRequest.getUsername(), "LOGIN_FAILED", "USER", null,
+                    "Failed login attempt for user: " + loginRequest.getUsername());
             return ResponseEntity.status(401).body(
                 ApiResponse.error("INVALID_CREDENTIALS", "Invalid username or password", null));
         } catch (org.springframework.web.client.HttpClientErrorException.BadRequest e) {
@@ -269,6 +276,8 @@ public class AuthController {
             clearRequiredActions(keycloakUserId, adminToken);
 
             log.info("Password changed successfully for user: {}", username);
+            auditService.log(username, "PASSWORD_CHANGE", "USER", null,
+                    "Password changed successfully for user: " + username);
             return ResponseEntity.ok(ApiResponse.success("Password changed successfully", null));
 
         } catch (Exception e) {
@@ -321,6 +330,12 @@ public class AuthController {
             result.put("expiresIn", expiresIn);
 
             log.info("Token refreshed successfully");
+            // Decode new token to get username for audit
+            try {
+                Map<String, Object> claims = decodeJwt(newAccessToken);
+                String uname = (String) claims.getOrDefault("preferred_username", "unknown");
+                auditService.log(uname, "TOKEN_REFRESH", "USER", null, "Token refreshed for user: " + uname);
+            } catch (Exception ignored) {}
             return ResponseEntity.ok(ApiResponse.success("Token refreshed", result));
         } catch (Exception e) {
             log.warn("Token refresh failed: {}", e.getMessage());
@@ -332,7 +347,15 @@ public class AuthController {
     // ──────────────────────── LOGOUT ──────────────────────────────────────────
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout() {
+    public ResponseEntity<?> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            try {
+                Map<String, Object> claims = decodeJwt(authHeader.substring(7));
+                String username = (String) claims.getOrDefault("preferred_username", "unknown");
+                auditService.log(username, "LOGOUT", "USER", null, "User " + username + " logged out");
+            } catch (Exception ignored) {}
+        }
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
     }
 

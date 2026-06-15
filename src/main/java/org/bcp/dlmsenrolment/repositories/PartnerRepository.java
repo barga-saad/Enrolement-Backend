@@ -27,4 +27,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
     Integer findMaxNumericReferenceNumber();
 
     List<Partner> findByEnrollmentType(String enrollmentType);
+
+    List<Partner> findByWorkflowStatus(String workflowStatus);
 }

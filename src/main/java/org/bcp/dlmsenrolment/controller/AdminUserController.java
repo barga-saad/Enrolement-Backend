@@ -9,6 +9,7 @@ import org.bcp.dlmsenrolment.dtos.request.UserCreateRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.UserUpdateRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.UserResponseDto;
 import org.bcp.dlmsenrolment.security.SecurityUtils;
+import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,7 @@ import java.util.List;
 public class AdminUserController {
 
     private final UserService userService;
+    private final AuditService auditService;
 
     /**
      * POST /admin/users - Create a new user
@@ -51,6 +53,8 @@ public class AdminUserController {
         log.info("Creating user: {}", request.getUsername());
         String createdByUsername = SecurityUtils.getUsername(authentication);
         UserResponseDto response = userService.createUser(request, createdByUsername);
+        auditService.log(createdByUsername, "CREATE_USER", "USER", response.getId(),
+                "User created: " + request.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -86,6 +90,8 @@ public class AdminUserController {
             @Valid @RequestBody UserUpdateRequestDto request) {
         log.info("Updating user: {}", id);
         UserResponseDto response = userService.updateUser(id, request);
+        auditService.log(null, "UPDATE_USER", "USER", id,
+                "User " + id + " updated");
         return ResponseEntity.ok(response);
     }
 
@@ -100,6 +106,8 @@ public class AdminUserController {
         log.warn("Deleting user: {}", id);
         String deletedByUsername = SecurityUtils.getUsername(authentication);
         userService.deleteUser(id, deletedByUsername);
+        auditService.log(deletedByUsername, "DELETE_USER", "USER", id,
+                "User " + id + " deleted by " + deletedByUsername);
         return ResponseEntity.noContent().build();
     }
 
@@ -115,6 +123,8 @@ public class AdminUserController {
         log.info("Assigning role {} to user {}", request.getRoleId(), userId);
         String assignedByUsername = SecurityUtils.getUsername(authentication);
         userService.assignRoleToUser(userId, request.getRoleId(), assignedByUsername);
+        auditService.log(assignedByUsername, "ASSIGN_ROLE", "USER", userId,
+                "Role " + request.getRoleId() + " assigned to user " + userId);
         return ResponseEntity.noContent().build();
     }
 
@@ -130,6 +140,8 @@ public class AdminUserController {
         log.info("Revoking role {} from user {}", roleId, userId);
         String revokedByUsername = SecurityUtils.getUsername(authentication);
         userService.revokeRoleFromUser(userId, roleId, revokedByUsername);
+        auditService.log(revokedByUsername, "REVOKE_ROLE", "USER", userId,
+                "Role " + roleId + " revoked from user " + userId);
         return ResponseEntity.noContent().build();
     }
 

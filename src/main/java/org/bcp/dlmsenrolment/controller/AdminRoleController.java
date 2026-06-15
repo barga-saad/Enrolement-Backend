@@ -8,6 +8,7 @@ import org.bcp.dlmsenrolment.dtos.request.AssignPermissionToRoleRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.RoleCreateRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.RoleUpdateRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.RoleResponseDto;
+import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.RoleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +38,7 @@ import java.util.List;
 public class AdminRoleController {
 
     private final RoleService roleService;
+    private final AuditService auditService;
 
     /**
      * POST /admin/roles - Create a new role
@@ -47,6 +49,8 @@ public class AdminRoleController {
             @Valid @RequestBody RoleCreateRequestDto request) {
         log.info("Creating role: {}", request.getRoleName());
         RoleResponseDto response = roleService.createRole(request);
+        auditService.log(null, "CREATE_ROLE", "ROLE", response.getId(),
+                "Role created: " + request.getRoleName());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -82,6 +86,8 @@ public class AdminRoleController {
             @Valid @RequestBody RoleUpdateRequestDto request) {
         log.info("Updating role: {}", id);
         RoleResponseDto response = roleService.updateRole(id, request);
+        auditService.log(null, "UPDATE_ROLE", "ROLE", id,
+                "Role " + id + " updated");
         return ResponseEntity.ok(response);
     }
 
@@ -93,6 +99,8 @@ public class AdminRoleController {
     public ResponseEntity<Void> deleteRole(@PathVariable Long id) {
         log.warn("Deleting role: {}", id);
         roleService.deleteRole(id);
+        auditService.log(null, "DELETE_ROLE", "ROLE", id,
+                "Role " + id + " deleted");
         return ResponseEntity.noContent().build();
     }
 
@@ -106,6 +114,8 @@ public class AdminRoleController {
             @Valid @RequestBody AssignPermissionToRoleRequestDto request) {
         log.info("Assigning permission {} to role {}", request.getPermissionId(), roleId);
         roleService.assignPermissionToRole(roleId, request.getPermissionId());
+        auditService.log(null, "ASSIGN_PERMISSION", "ROLE", roleId,
+                "Permission " + request.getPermissionId() + " assigned to role " + roleId);
         return ResponseEntity.noContent().build();
     }
 
@@ -119,6 +129,8 @@ public class AdminRoleController {
             @PathVariable Long permissionId) {
         log.info("Removing permission {} from role {}", permissionId, roleId);
         roleService.removePermissionFromRole(roleId, permissionId);
+        auditService.log(null, "REMOVE_PERMISSION", "ROLE", roleId,
+                "Permission " + permissionId + " removed from role " + roleId);
         return ResponseEntity.noContent().build();
     }
 

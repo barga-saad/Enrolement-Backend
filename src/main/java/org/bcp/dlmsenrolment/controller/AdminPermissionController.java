@@ -7,9 +7,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.request.PermissionCreateRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.PermissionUpdateRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PermissionResponseDto;
+import org.bcp.dlmsenrolment.security.SecurityUtils;
+import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.PermissionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -17,14 +20,6 @@ import java.util.List;
 
 /**
  * AdminPermissionController - REST API endpoints for permission management.
- * 
- * ENDPOINTS:
- * POST   /admin/permissions              - Create new permission
- * GET    /admin/permissions              - List all permissions
- * GET    /admin/permissions/{id}         - Get permission by ID
- * PUT    /admin/permissions/{id}         - Update permission
- * DELETE /admin/permissions/{id}         - Soft-delete permission
- * GET    /admin/permissions/owner-check  - Get permissions requiring owner check
  */
 @RestController
 @RequestMapping("/admin/permissions")
@@ -34,73 +29,63 @@ import java.util.List;
 public class AdminPermissionController {
 
     private final PermissionService permissionService;
+    private final AuditService auditService;
 
-    /**
-     * POST /admin/permissions - Create a new permission
-     */
     @PostMapping
     @Operation(summary = "Create a new permission")
     public ResponseEntity<PermissionResponseDto> createPermission(
-            @Valid @RequestBody PermissionCreateRequestDto request) {
+            @Valid @RequestBody PermissionCreateRequestDto request,
+            Authentication authentication) {
         log.info("Creating permission: {}", request.getPermissionName());
         PermissionResponseDto response = permissionService.createPermission(request);
+        String actor = SecurityUtils.getUsername(authentication);
+        auditService.log(actor, "CREATE_PERMISSION", "PERMISSION", response.getId(),
+                "Permission '" + response.getPermissionName() + "' created by " + actor);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /**
-     * GET /admin/permissions - List all permissions
-     */
     @GetMapping
     @Operation(summary = "Get all permissions")
     public ResponseEntity<List<PermissionResponseDto>> getAllPermissions() {
-        log.info("Fetching all permissions");
-        List<PermissionResponseDto> permissions = permissionService.getAllPermissions();
-        return ResponseEntity.ok(permissions);
+        return ResponseEntity.ok(permissionService.getAllPermissions());
     }
 
-    /**
-     * GET /admin/permissions/{id} - Get permission by ID
-     */
     @GetMapping("/{id}")
     @Operation(summary = "Get permission by ID")
     public ResponseEntity<PermissionResponseDto> getPermissionById(@PathVariable Long id) {
-        log.info("Fetching permission: {}", id);
-        PermissionResponseDto permission = permissionService.getPermissionById(id);
-        return ResponseEntity.ok(permission);
+        return ResponseEntity.ok(permissionService.getPermissionById(id));
     }
 
-    /**
-     * PUT /admin/permissions/{id} - Update permission
-     */
     @PutMapping("/{id}")
     @Operation(summary = "Update permission")
     public ResponseEntity<PermissionResponseDto> updatePermission(
             @PathVariable Long id,
-            @Valid @RequestBody PermissionUpdateRequestDto request) {
+            @Valid @RequestBody PermissionUpdateRequestDto request,
+            Authentication authentication) {
         log.info("Updating permission: {}", id);
         PermissionResponseDto response = permissionService.updatePermission(id, request);
+        String actor = SecurityUtils.getUsername(authentication);
+        auditService.log(actor, "UPDATE_PERMISSION", "PERMISSION", id,
+                "Permission '" + response.getPermissionName() + "' updated by " + actor);
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * DELETE /admin/permissions/{id} - Soft-delete permission
-     */
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete permission")
-    public ResponseEntity<Void> deletePermission(@PathVariable Long id) {
+    public ResponseEntity<Void> deletePermission(
+            @PathVariable Long id,
+            Authentication authentication) {
         log.warn("Deleting permission: {}", id);
         permissionService.deletePermission(id);
+        String actor = SecurityUtils.getUsername(authentication);
+        auditService.log(actor, "DELETE_PERMISSION", "PERMISSION", id,
+                "Permission " + id + " deleted by " + actor);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * GET /admin/permissions/owner-check - Get permissions requiring owner check
-     */
     @GetMapping("/owner-check/true")
     @Operation(summary = "Get permissions requiring owner check")
     public ResponseEntity<List<PermissionResponseDto>> getPermissionsRequiringOwnerCheck() {
-        log.info("Fetching permissions requiring owner check");
-        List<PermissionResponseDto> permissions = permissionService.getPermissionsRequiringOwnerCheck();
-        return ResponseEntity.ok(permissions);
+        return ResponseEntity.ok(permissionService.getPermissionsRequiringOwnerCheck());
     }
 }
