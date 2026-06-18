@@ -39,8 +39,8 @@ public class Partner {
     @Column(name = "classification", nullable = false)
     private String classification; // Local / International
 
-    @Column(name = "account_number", nullable = false, length = 16)
-    private String accountNumber; // partner account number inside bcp
+    @Column(name = "account_number", nullable = false, length = 24)
+    private String accountNumber; // RIB partenaire (24 chiffres)
 
     @OneToMany(mappedBy = "partner", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<PartnerCurrency> currencies = new HashSet<>();
@@ -66,6 +66,11 @@ public class Partner {
 
     @Column(name = "allowed_wallet_transfer", nullable = false)
     private boolean allowedWalletTransfer; // wallet
+
+    @Column(name = "allowed_srbm_rtgs_transfer", nullable = false,
+            columnDefinition = "boolean default false")
+    private boolean allowedSrbmRtgsTransfer; // virement SRBM confrère RTGS
+
     // limit for partner what amount can he send in one transfer
     @Column(name = "limit_internal_instant_transfer", nullable = false)
     private BigDecimal limitInternalInstantTransfer;
@@ -84,6 +89,10 @@ public class Partner {
 
     @Column(name = "limit_wallet_transfer", nullable = false)
     private BigDecimal limitWalletTransfer;
+
+    @Column(name = "limit_srbm_rtgs_transfer", nullable = false,
+            columnDefinition = "numeric(38,2) default 0")
+    private BigDecimal limitSrbmRtgsTransfer = BigDecimal.ZERO;
 
     @Column(name = "nature_mass_cash_pickup_transfer", nullable = false)
     private BigDecimal natureMassCashPickupTransfer;

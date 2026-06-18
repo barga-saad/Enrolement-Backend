@@ -28,6 +28,7 @@ public class PartnerRequestDto {
     private boolean allowedCashPickupTransfer;
     private boolean allowedMassCashPickupTransfer;
     private boolean allowedWalletTransfer;
+    private boolean allowedSrbmRtgsTransfer;
 
     // Transfer limits — default 0 so NOT NULL constraint is satisfied
     private BigDecimal limitInternalInstantTransfer = BigDecimal.ZERO;
@@ -36,6 +37,7 @@ public class PartnerRequestDto {
     private BigDecimal limitCashPickupTransfer = BigDecimal.ZERO;
     private BigDecimal limitMassCashPickupTransfer = BigDecimal.ZERO;
     private BigDecimal limitWalletTransfer = BigDecimal.ZERO;
+    private BigDecimal limitSrbmRtgsTransfer = BigDecimal.ZERO;
 
     private BigDecimal natureMassCashPickupTransfer = BigDecimal.ZERO;
     private Integer validDaysMassCashPickupTransfer = 0;

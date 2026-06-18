@@ -9,6 +9,7 @@ import org.bcp.dlmsenrolment.repositories.PermissionRepository;
 import org.bcp.dlmsenrolment.repositories.UserRepository;
 import org.bcp.dlmsenrolment.repositories.UserRoleRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.util.AntPathMatcher;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -41,6 +42,7 @@ public class PermissionResolver {
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final PermissionRepository permissionRepository;
+    private final AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     /**
      * Get all permissions for a user
@@ -131,7 +133,11 @@ public class PermissionResolver {
      * @return List of matching permissions
      */
     public List<Permission> findMatchingPermissions(String endpoint, String httpMethod) {
-        return permissionRepository.findByEndpointAndMethod(endpoint, httpMethod);
+        List<Permission> allPermissions = permissionRepository.findAllActive();
+        return allPermissions.stream()
+            .filter(p -> p.getHttpMethod().equalsIgnoreCase(httpMethod) &&
+                         antPathMatcher.match(p.getEndpoint(), endpoint))
+            .collect(Collectors.toList());
     }
 
     /**

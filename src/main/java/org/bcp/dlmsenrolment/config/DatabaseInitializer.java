@@ -137,10 +137,10 @@ public class DatabaseInitializer implements ApplicationRunner {
         log.info("Creating permissions...");
         List<Permission> permissions = new ArrayList<>();
 
-        // Partner Management Permissions
+        // === PARTNER MANAGEMENT ===
         permissions.add(Permission.builder()
             .permissionName("PARTNER_CREATE")
-            .endpoint("/api/partners")
+            .endpoint("/v1/create/partners")
             .httpMethod("POST")
             .description("Create a new partner")
             .requiresOwnerCheck(false)
@@ -149,7 +149,7 @@ public class DatabaseInitializer implements ApplicationRunner {
 
         permissions.add(Permission.builder()
             .permissionName("PARTNER_LIST_ALL")
-            .endpoint("/api/partners")
+            .endpoint("/v1/read/partners")
             .httpMethod("GET")
             .description("List all partners")
             .requiresOwnerCheck(false)
@@ -158,43 +158,35 @@ public class DatabaseInitializer implements ApplicationRunner {
 
         permissions.add(Permission.builder()
             .permissionName("PARTNER_VIEW_OWN")
-            .endpoint("/api/partners/{id}")
+            .endpoint("/getpartner/*")
             .httpMethod("GET")
-            .description("View own partner record")
-            .requiresOwnerCheck(true)
+            .description("View partner by ID")
+            .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
         permissions.add(Permission.builder()
             .permissionName("PARTNER_UPDATE_OWN")
-            .endpoint("/api/partners/{id}")
+            .endpoint("/v1/update/partners")
             .httpMethod("PUT")
-            .description("Update own partner record")
-            .requiresOwnerCheck(true)
-            .isActive(true)
-            .build());
-
-        permissions.add(Permission.builder()
-            .permissionName("PARTNER_VALIDATE")
-            .endpoint("/api/partners/{id}/validate")
-            .httpMethod("POST")
-            .description("Validate partner")
+            .description("Update partner record")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
         permissions.add(Permission.builder()
             .permissionName("PARTNER_DELETE")
-            .endpoint("/api/partners/{id}")
+            .endpoint("/v1/delete/partners")
             .httpMethod("DELETE")
             .description("Delete partner")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
+        // === VALIDATION WORKFLOW ===
         permissions.add(Permission.builder()
             .permissionName("PARTNER_SUBMIT")
-            .endpoint("/v1/validations/partners/{id}/submit")
+            .endpoint("/v1/validations/partners/*/submit")
             .httpMethod("POST")
             .description("Submit partner for validation")
             .requiresOwnerCheck(false)
@@ -202,10 +194,28 @@ public class DatabaseInitializer implements ApplicationRunner {
             .build());
 
         permissions.add(Permission.builder()
-            .permissionName("PARTNER_REJECT")
-            .endpoint("/v1/validations/{id}/reject")
+            .permissionName("PARTNER_DRAFT")
+            .endpoint("/v1/validations/partners/*/draft")
             .httpMethod("POST")
-            .description("Reject partner validation")
+            .description("Save partner as draft")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_VALIDATE")
+            .endpoint("/v1/validations/*/validate")
+            .httpMethod("POST")
+            .description("Validate a pending partner")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_REJECT")
+            .endpoint("/v1/validations/*/reject")
+            .httpMethod("POST")
+            .description("Reject a pending partner")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
@@ -220,14 +230,34 @@ public class DatabaseInitializer implements ApplicationRunner {
             .build());
 
         permissions.add(Permission.builder()
-            .permissionName("AUDIT_LOG_VIEW")
-            .endpoint("/admin/audit-logs")
+            .permissionName("PARTNER_DRAFTS_LIST")
+            .endpoint("/v1/validations/drafts")
             .httpMethod("GET")
-            .description("View audit logs")
+            .description("List draft validations")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
+        permissions.add(Permission.builder()
+            .permissionName("PARTNER_VALIDATION_VIEW")
+            .endpoint("/v1/validations/**")
+            .httpMethod("GET")
+            .description("View validation records")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        // === TRANSFERS ===
+        permissions.add(Permission.builder()
+            .permissionName("TRANSFER_VIEW_OWN")
+            .endpoint("/gealltransfers/*")
+            .httpMethod("GET")
+            .description("View transfers for a partner")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        // === EXPORT ===
         permissions.add(Permission.builder()
             .permissionName("PARTNER_EXPORT")
             .endpoint("/v1/export/partners")
@@ -237,72 +267,71 @@ public class DatabaseInitializer implements ApplicationRunner {
             .isActive(true)
             .build());
 
-        // Transfer Permissions
+        // === ADMIN USER MANAGEMENT ===
         permissions.add(Permission.builder()
-            .permissionName("TRANSFER_CREATE")
-            .endpoint("/api/transfers")
-            .httpMethod("POST")
-            .description("Create a new transfer")
-            .requiresOwnerCheck(false)
-            .isActive(true)
-            .build());
-
-        permissions.add(Permission.builder()
-            .permissionName("TRANSFER_LIST_ALL")
-            .endpoint("/api/transfers")
+            .permissionName("ADMIN_USER_VIEW")
+            .endpoint("/admin/users")
             .httpMethod("GET")
-            .description("List all transfers")
+            .description("List all users")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
         permissions.add(Permission.builder()
-            .permissionName("TRANSFER_VIEW_OWN")
-            .endpoint("/api/transfers/{id}")
+            .permissionName("ADMIN_USER_VIEW_ONE")
+            .endpoint("/admin/users/**")
             .httpMethod("GET")
-            .description("View own transfer record")
-            .requiresOwnerCheck(true)
-            .isActive(true)
-            .build());
-
-        permissions.add(Permission.builder()
-            .permissionName("TRANSFER_VALIDATE")
-            .endpoint("/api/transfers/{id}/validate")
-            .httpMethod("POST")
-            .description("Validate transfer")
+            .description("View user details and roles")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
-        // Report & Export Permissions
-        permissions.add(Permission.builder()
-            .permissionName("REPORT_EXPORT")
-            .endpoint("/api/reports/export")
-            .httpMethod("POST")
-            .description("Export reports")
-            .requiresOwnerCheck(false)
-            .isActive(true)
-            .build());
-
-        permissions.add(Permission.builder()
-            .permissionName("DOCUMENT_PRINT")
-            .endpoint("/api/documents/print")
-            .httpMethod("POST")
-            .description("Print documents")
-            .requiresOwnerCheck(false)
-            .isActive(true)
-            .build());
-
-        // Admin Management Permissions
         permissions.add(Permission.builder()
             .permissionName("ADMIN_USER_MANAGE")
             .endpoint("/admin/users")
             .httpMethod("POST")
-            .description("Create and manage users")
+            .description("Create users")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
 
+        permissions.add(Permission.builder()
+            .permissionName("ADMIN_USER_UPDATE")
+            .endpoint("/admin/users/*")
+            .httpMethod("PUT")
+            .description("Update user")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("ADMIN_USER_DELETE")
+            .endpoint("/admin/users/*")
+            .httpMethod("DELETE")
+            .description("Delete user")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("ADMIN_ROLE_ASSIGN")
+            .endpoint("/admin/users/*/roles")
+            .httpMethod("POST")
+            .description("Assign role to user")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("ADMIN_ROLE_REVOKE")
+            .endpoint("/admin/users/*/roles/*")
+            .httpMethod("DELETE")
+            .description("Revoke role from user")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        // === ADMIN ROLE MANAGEMENT ===
         permissions.add(Permission.builder()
             .permissionName("ADMIN_ROLE_MANAGE")
             .endpoint("/admin/roles")
@@ -313,10 +342,39 @@ public class DatabaseInitializer implements ApplicationRunner {
             .build());
 
         permissions.add(Permission.builder()
+            .permissionName("ADMIN_ROLE_VIEW")
+            .endpoint("/admin/roles/**")
+            .httpMethod("GET")
+            .description("List and view roles")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        // === ADMIN PERMISSION MANAGEMENT ===
+        permissions.add(Permission.builder()
             .permissionName("ADMIN_PERMISSION_MANAGE")
             .endpoint("/admin/permissions")
             .httpMethod("POST")
             .description("Create and manage permissions")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        permissions.add(Permission.builder()
+            .permissionName("ADMIN_PERMISSION_VIEW")
+            .endpoint("/admin/permissions/**")
+            .httpMethod("GET")
+            .description("List and view permissions")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
+        // === AUDIT LOGS ===
+        permissions.add(Permission.builder()
+            .permissionName("AUDIT_LOG_VIEW")
+            .endpoint("/admin/audit-logs")
+            .httpMethod("GET")
+            .description("View audit logs")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
@@ -339,9 +397,9 @@ public class DatabaseInitializer implements ApplicationRunner {
             .build();
         roleRepository.save(saisieRole);
 
-        assignPermissionsToRole(saisieRole, "PARTNER_CREATE", "PARTNER_LIST_ALL", 
-            "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "TRANSFER_CREATE", "TRANSFER_VIEW_OWN",
-            "PARTNER_SUBMIT");
+        assignPermissionsToRole(saisieRole, "PARTNER_CREATE", "PARTNER_LIST_ALL",
+            "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "TRANSFER_VIEW_OWN",
+            "PARTNER_SUBMIT", "PARTNER_DRAFT", "PARTNER_DRAFTS_LIST", "PARTNER_VALIDATION_VIEW");
         log.info("Created role: PROFIL_SAISIE");
 
         // Role 2: PROFIL_VALIDATEUR - Validator (Can validate all partner/transfer records)
@@ -353,8 +411,8 @@ public class DatabaseInitializer implements ApplicationRunner {
         roleRepository.save(validateurRole);
 
         assignPermissionsToRole(validateurRole, "PARTNER_LIST_ALL", "PARTNER_VALIDATE",
-            "TRANSFER_LIST_ALL", "TRANSFER_VALIDATE", "REPORT_EXPORT",
-            "PARTNER_REJECT", "PARTNER_VALIDATION_LIST", "PARTNER_EXPORT");
+            "PARTNER_REJECT", "PARTNER_VALIDATION_LIST", "PARTNER_EXPORT",
+            "PARTNER_VALIDATION_VIEW", "TRANSFER_VIEW_OWN");
         log.info("Created role: PROFIL_VALIDATEUR");
 
         // Role 3: PROFIL_CONSULTATION - Consultation (Read-only access)
@@ -365,8 +423,8 @@ public class DatabaseInitializer implements ApplicationRunner {
             .build();
         roleRepository.save(consultationRole);
 
-        assignPermissionsToRole(consultationRole, "PARTNER_LIST_ALL", "TRANSFER_LIST_ALL", 
-            "DOCUMENT_PRINT");
+        assignPermissionsToRole(consultationRole, "PARTNER_LIST_ALL", "TRANSFER_VIEW_OWN",
+            "PARTNER_VALIDATION_VIEW");
         log.info("Created role: PROFIL_CONSULTATION");
 
         // Role 4: PROFIL_ADMIN_CENTRAL - Full Admin (All permissions)
