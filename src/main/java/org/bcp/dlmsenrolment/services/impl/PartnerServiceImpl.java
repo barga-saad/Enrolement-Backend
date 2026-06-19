@@ -150,6 +150,8 @@ public class PartnerServiceImpl implements PartnerService {
         partner.setValidDaysMassCashPickupTransfer(dto.getValidDaysMassCashPickupTransfer());
         partner.setAllowedWalletTransfer(dto.isAllowedWalletTransfer());
         partner.setLimitWalletTransfer(dto.getLimitWalletTransfer());
+        partner.setAllowedSrbmRtgsTransfer(dto.isAllowedSrbmRtgsTransfer());
+        partner.setLimitSrbmRtgsTransfer(dto.getLimitSrbmRtgsTransfer());
         partner.setMainCurrency(dto.getMainCurrency());
         partner.setExchangeRateNature(dto.getExchangeRateNature());
         partner.setSubscriptionFee(dto.getSubscriptionFee());

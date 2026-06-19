@@ -36,6 +36,7 @@ public class PartnerResponseDto {
     private boolean allowedCashPickupTransfer;
     private boolean allowedMassCashPickupTransfer;
     private boolean allowedWalletTransfer;
+    private boolean allowedSrbmRtgsTransfer;
 
     // ===== TRANSFER LIMITS =====
     private BigDecimal limitInternalInstantTransfer;
@@ -44,6 +45,7 @@ public class PartnerResponseDto {
     private BigDecimal limitCashPickupTransfer;
     private BigDecimal limitMassCashPickupTransfer;
     private BigDecimal limitWalletTransfer;
+    private BigDecimal limitSrbmRtgsTransfer;
     private BigDecimal natureMassCashPickupTransfer;
     private Integer validDaysMassCashPickupTransfer;
 
