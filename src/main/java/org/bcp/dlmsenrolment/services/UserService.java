@@ -56,6 +56,11 @@ public class UserService {
     public UserResponseDto createUser(UserCreateRequestDto dto, String createdByUsername) {
         log.info("Creating new user: {}", dto.getUsername());
 
+        // Keycloak usernames are lowercase: store the same form so the login lookup matches
+        if (dto.getUsername() != null) {
+            dto.setUsername(dto.getUsername().trim().toLowerCase(java.util.Locale.ROOT));
+        }
+
         // Check if user already exists
         if (userRepository.existsByUsername(dto.getUsername())) {
             throw new RuntimeException("User with username '" + dto.getUsername() + "' already exists");

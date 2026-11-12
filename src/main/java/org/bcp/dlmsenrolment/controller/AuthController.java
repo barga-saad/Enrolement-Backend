@@ -28,11 +28,10 @@ import java.util.stream.Collectors;
  * FLOW:
  *  1. User logs in → Keycloak validates credentials → returns JWT
  *  2. Backend decodes JWT → extracts email/firstName/lastName/required_actions
- *  3. If user not in local DB → auto-create (no roles yet)
-    *  4. Admin assigns roles via /admin/users/{id}/roles
-    *  5. On next login user gets proper roleNames and correct access
- *  5. Admin assigns roles via /admin/users/{id}/roles
- *  6. On next login user gets proper roleNames and correct access
+ *  3. If user not in local DB → 403 USER_NOT_REGISTERED (no auto-creation): an habilitation agent
+ *     or central admin must first create the user (POST /admin/users) with the Keycloak username
+ *  4. Registered user without role → signs in and sees the "waiting for a role" page
+ *  5. Roles are assigned via /admin/users/{id}/roles; on next login / refresh the user gets access
  */
 @Slf4j
 @RestController
@@ -100,24 +99,26 @@ public class AuthController {
             String firstName = (String) claims.getOrDefault("given_name", loginRequest.getUsername());
             String lastName  = (String) claims.getOrDefault("family_name", "");
 
-            // 3. Auto-sync only genuinely new users; never recreate or authenticate inactive users.
-            User user = userRepository.findByUsernameIncludingDeleted(loginRequest.getUsername()).orElse(null);
-            if (user != null && (user.isDeleted() || !Boolean.TRUE.equals(user.getIsActive()))) {
+            // 3. Only users registered beforehand by an habilitation agent / central admin may sign in.
+            //    Keycloak's canonical username (preferred_username) is tried first, then the typed one.
+            String tokenUsername = (String) claims.getOrDefault("preferred_username", "");
+            User user = (tokenUsername.isBlank() ? Optional.<User>empty()
+                    : userRepository.findByUsernameIncludingDeleted(tokenUsername))
+                .or(() -> userRepository.findByUsernameIncludingDeleted(loginRequest.getUsername()))
+                .orElse(null);
+            if (user == null) {
+                log.warn("Login refused - Keycloak user not registered in the application: {}", loginRequest.getUsername());
+                auditService.log(loginRequest.getUsername(), "LOGIN_DENIED", "USER", null,
+                        "Login refused: user " + loginRequest.getUsername() + " is not registered in the application");
+                return ResponseEntity.status(403).body(
+                    ApiResponse.error("USER_NOT_REGISTERED",
+                        "Access denied: this user is not registered in the application", null));
+            }
+            if (user.isDeleted() || !Boolean.TRUE.equals(user.getIsActive())) {
                 return ResponseEntity.status(403).body(
                     ApiResponse.error("ACCOUNT_DISABLED", "This account is disabled", null));
             }
-            if (user == null) {
-                user = new User();
-                user.setUsername(loginRequest.getUsername());
-                user.setEmail(email.isBlank() ? loginRequest.getUsername() + "@enrollment.local" : email);
-                user.setFirstName(firstName);
-                user.setLastName(lastName);
-                user.setIsActive(true);
-                user.setCreatedAt(LocalDateTime.now());
-                user.setUpdatedAt(LocalDateTime.now());
-                userRepository.save(user);
-                log.info("Auto-synced new user from Keycloak: {}", loginRequest.getUsername());
-            } else {
+            {
                 // Keep DB in sync with Keycloak profile
                 boolean changed = false;
                 if (!email.isBlank() && !email.equals(user.getEmail())) { user.setEmail(email); changed = true; }
@@ -130,7 +131,7 @@ public class AuthController {
             }
 
             // 4. Load roles directly from userRoleRepository (avoids Hibernate L1 cache issue)
-            List<String> roleNames = userRoleRepository.findActiveRolesByUsername(loginRequest.getUsername())
+            List<String> roleNames = userRoleRepository.findActiveRolesByUsername(user.getUsername())
                 .stream()
                 .map(ur -> ur.getRole().getRoleName())
                 .collect(Collectors.toList());
