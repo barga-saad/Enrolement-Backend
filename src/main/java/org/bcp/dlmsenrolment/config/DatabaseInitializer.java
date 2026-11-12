@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.entities.Permission;
 import org.bcp.dlmsenrolment.entities.Role;
 import org.bcp.dlmsenrolment.entities.RolePermission;
-import org.bcp.dlmsenrolment.entities.User;
 import org.bcp.dlmsenrolment.entities.UserRole;
+import org.bcp.dlmsenrolment.security.Profiles;
 import org.bcp.dlmsenrolment.repositories.PermissionRepository;
 import org.bcp.dlmsenrolment.repositories.RolePermissionRepository;
 import org.bcp.dlmsenrolment.repositories.RoleRepository;
@@ -16,12 +16,8 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import java.util.Optional;
-
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * DatabaseInitializer - Initialize seed data on application startup.
@@ -44,7 +40,6 @@ public class DatabaseInitializer implements ApplicationRunner {
     private final PermissionRepository permissionRepository;
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
-    private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
 
     @Override
@@ -58,7 +53,6 @@ public class DatabaseInitializer implements ApplicationRunner {
             try {
                 createPermissions();
                 createRolesWithPermissions();
-                createTestUsers();
                 log.info("=== Database Initialization Completed Successfully ===");
             } catch (Exception e) {
                 log.error("Error during database initialization", e);
@@ -66,67 +60,104 @@ public class DatabaseInitializer implements ApplicationRunner {
             }
         }
 
-        // Always ensure every user has the correct PROFIL_* role — runs on every startup
-        ensureCorrectRoles();
+        reconcileAdminPermissions();
+        reconcileAdminPermissionUpdate();
+        reconcileAdminPartnerStatsPermission();
+        reconcilePartnerExportPermission();
+        reconcilePartnerStatusPermission();
+        reconcileRemovedTransferPermissions();
+        reconcileAgentEnrolementProfile();
+        reconcileAgentHabilitationProfile();
     }
 
+    // ===== PROFILES: agent d'enrôlement + agent d'habilitation =====
+
+    /** Data entry + validation (4-eyes rule enforced in PartnerValidationServiceImpl). */
+    private static final List<String> AGENT_ENROLEMENT_PERMISSIONS = List.of(
+        "PARTNER_CREATE", "PARTNER_LIST_ALL", "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "PARTNER_STATUS_CHANGE",
+        "PARTNER_SUBMIT", "PARTNER_DRAFT", "PARTNER_DRAFTS_LIST", "PARTNER_VALIDATION_VIEW",
+        "PARTNER_VALIDATE", "PARTNER_REJECT", "PARTNER_VALIDATION_LIST", "PARTNER_EXPORT");
+
+    /** User management and role assignment only (restrictions enforced in UserService). */
+    private static final List<String> AGENT_HABILITATION_PERMISSIONS = List.of(
+        "ADMIN_USER_VIEW", "ADMIN_USER_VIEW_ONE", "ADMIN_USER_MANAGE", "ADMIN_USER_UPDATE", "ADMIN_USER_DELETE",
+        "ADMIN_ROLE_ASSIGN", "ADMIN_ROLE_REVOKE", "ADMIN_ROLE_VIEW");
+
     /**
-     * Ensures all known users have the correct PROFIL_* role assigned.
-     * Safe to run multiple times (idempotent).
-     *
-     * Fixes the case where users were created with wrong role names
-     * (ADMIN, VALIDATEUR, SAISIE, CONSULTATION) instead of the canonical
-     * PROFIL_ names the frontend expects.
+     * Merges PROFIL_SAISIE and PROFIL_VALIDATEUR into PROFIL_AGENT_ENROLEMENT:
+     * creates the new profile, moves every user holding an old profile to it, then revokes the old
+     * assignments and deactivates the old profiles (kept in DB for history and audit).
      */
-    private void ensureCorrectRoles() {
-        // username → correct PROFIL_ role name
-        Map<String, String> assignments = new java.util.LinkedHashMap<>();
-        assignments.put("admin",     "PROFIL_ADMIN_CENTRAL");
-        assignments.put("sbarga",    "PROFIL_ADMIN_CENTRAL");
-        assignments.put("john",      "PROFIL_VALIDATEUR");
-        assignments.put("sarah",     "PROFIL_SAISIE");
-        assignments.put("maria",     "PROFIL_CONSULTATION");
+    private void reconcileAgentEnrolementProfile() {
+        Role agentRole = ensureRole(Profiles.AGENT_ENROLEMENT,
+            "Agent d'enrôlement - saisie et validation des partenaires/clients (principe des 4 yeux)");
 
-        for (Map.Entry<String, String> entry : assignments.entrySet()) {
-            String username = entry.getKey();
-            String roleName = entry.getValue();
+        List<String> permissionNames = new ArrayList<>(AGENT_ENROLEMENT_PERMISSIONS);
+        for (String legacyName : List.of(Profiles.LEGACY_SAISIE, Profiles.LEGACY_VALIDATEUR)) {
+            roleRepository.findByRoleName(legacyName).ifPresent(legacy ->
+                rolePermissionRepository.findByRoleId(legacy.getId())
+                    .forEach(rp -> permissionNames.add(rp.getPermission().getPermissionName())));
+        }
+        grantPermissions(agentRole, permissionNames);
 
-            Role role = roleRepository.findByRoleName(roleName).orElse(null);
-            if (role == null) {
-                log.warn("ensureCorrectRoles: role {} not found, skipping {}", roleName, username);
+        for (String legacyName : List.of(Profiles.LEGACY_SAISIE, Profiles.LEGACY_VALIDATEUR)) {
+            Role legacy = roleRepository.findByRoleName(legacyName).orElse(null);
+            if (legacy == null) {
                 continue;
             }
-
-            // Use eager-fetch query to avoid lazy-load issues
-            User user = userRepository.findByUsernameWithRoles(username).orElse(null);
-            if (user == null) {
-                log.debug("ensureCorrectRoles: user {} not in DB yet (will be created on first login)", username);
-                continue;
-            }
-
-            Optional<UserRole> existing = userRoleRepository.findByUserAndRole(user.getId(), role.getId());
-            if (existing.isPresent()) {
-                UserRole ur = existing.get();
-                if (ur.getDeletedAt() != null) {
-                    // Reactivate soft-deleted assignment
-                    ur.setDeletedAt(null);
-                    ur.setDeletedBy(null);
-                    ur.setAssignedAt(LocalDateTime.now());
-                    ur.setAssignedBy("system");
-                    userRoleRepository.save(ur);
-                    log.info("ensureCorrectRoles: reactivated {} for {}", roleName, username);
-                } else {
-                    log.debug("ensureCorrectRoles: {} already has {}", username, roleName);
+            for (UserRole assignment : userRoleRepository.findUsersByRoleId(legacy.getId())) {
+                Long userId = assignment.getUser().getId();
+                UserRole existing = userRoleRepository.findByUserAndRole(userId, agentRole.getId()).orElse(null);
+                if (existing == null) {
+                    UserRole migrated = new UserRole();
+                    migrated.setUser(assignment.getUser());
+                    migrated.setRole(agentRole);
+                    migrated.setAssignedBy("SYSTEM_MIGRATION");
+                    userRoleRepository.save(migrated);
+                } else if (!existing.isActive()) {
+                    existing.restore();
+                    existing.setAssignedBy("SYSTEM_MIGRATION");
+                    userRoleRepository.save(existing);
                 }
-            } else {
-                UserRole ur = new UserRole();
-                ur.setUser(user);
-                ur.setRole(role);
-                ur.setAssignedAt(LocalDateTime.now());
-                ur.setAssignedBy("system");
-                userRoleRepository.save(ur);
-                log.info("ensureCorrectRoles: assigned {} to {}", roleName, username);
+                assignment.revoke("SYSTEM_MIGRATION");
+                userRoleRepository.save(assignment);
+                log.info("Migrated user {} from {} to {}", assignment.getUser().getUsername(), legacyName, Profiles.AGENT_ENROLEMENT);
             }
+            if (Boolean.TRUE.equals(legacy.getIsActive())) {
+                legacy.setIsActive(false);
+                roleRepository.save(legacy);
+                log.info("Deactivated legacy profile {}", legacyName);
+            }
+        }
+    }
+
+    private void reconcileAgentHabilitationProfile() {
+        Role role = ensureRole(Profiles.AGENT_HABILITATION,
+            "Agent d'habilitation - gestion des utilisateurs et attribution des rôles agent d'enrôlement / consultant");
+        grantPermissions(role, AGENT_HABILITATION_PERMISSIONS);
+    }
+
+    private Role ensureRole(String roleName, String description) {
+        return roleRepository.findByRoleName(roleName).orElseGet(() -> {
+            log.info("Creating profile {}", roleName);
+            return roleRepository.save(Role.builder()
+                .roleName(roleName)
+                .description(description)
+                .isActive(true)
+                .build());
+        });
+    }
+
+    private void grantPermissions(Role role, List<String> permissionNames) {
+        for (String permissionName : new java.util.LinkedHashSet<>(permissionNames)) {
+            permissionRepository.findByPermissionName(permissionName).ifPresent(permission -> {
+                if (rolePermissionRepository.findByRoleAndPermission(role.getId(), permission.getId()).isEmpty()) {
+                    rolePermissionRepository.save(RolePermission.builder()
+                        .role(role)
+                        .permission(permission)
+                        .build());
+                }
+            });
         }
     }
 
@@ -175,10 +206,10 @@ public class DatabaseInitializer implements ApplicationRunner {
             .build());
 
         permissions.add(Permission.builder()
-            .permissionName("PARTNER_DELETE")
-            .endpoint("/v1/delete/partners")
-            .httpMethod("DELETE")
-            .description("Delete partner")
+            .permissionName("PARTNER_STATUS_CHANGE")
+            .endpoint("/v1/partners/*/status")
+            .httpMethod("PATCH")
+            .description("Activate or deactivate a partner")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
@@ -243,16 +274,6 @@ public class DatabaseInitializer implements ApplicationRunner {
             .endpoint("/v1/validations/**")
             .httpMethod("GET")
             .description("View validation records")
-            .requiresOwnerCheck(false)
-            .isActive(true)
-            .build());
-
-        // === TRANSFERS ===
-        permissions.add(Permission.builder()
-            .permissionName("TRANSFER_VIEW_OWN")
-            .endpoint("/gealltransfers/*")
-            .httpMethod("GET")
-            .description("View transfers for a partner")
             .requiresOwnerCheck(false)
             .isActive(true)
             .build());
@@ -369,6 +390,15 @@ public class DatabaseInitializer implements ApplicationRunner {
             .isActive(true)
             .build());
 
+        permissions.add(Permission.builder()
+            .permissionName("ADMIN_PERMISSION_UPDATE")
+            .endpoint("/admin/permissions/*")
+            .httpMethod("PUT")
+            .description("Activate or deactivate permissions")
+            .requiresOwnerCheck(false)
+            .isActive(true)
+            .build());
+
         // === AUDIT LOGS ===
         permissions.add(Permission.builder()
             .permissionName("AUDIT_LOG_VIEW")
@@ -398,53 +428,159 @@ public class DatabaseInitializer implements ApplicationRunner {
         roleRepository.save(saisieRole);
 
         assignPermissionsToRole(saisieRole, "PARTNER_CREATE", "PARTNER_LIST_ALL",
-            "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "TRANSFER_VIEW_OWN",
+            "PARTNER_VIEW_OWN", "PARTNER_UPDATE_OWN", "PARTNER_STATUS_CHANGE",
             "PARTNER_SUBMIT", "PARTNER_DRAFT", "PARTNER_DRAFTS_LIST", "PARTNER_VALIDATION_VIEW");
         log.info("Created role: PROFIL_SAISIE");
 
-        // Role 2: PROFIL_VALIDATEUR - Validator (Can validate all partner/transfer records)
+        // Role 2: PROFIL_VALIDATEUR - Validator
         Role validateurRole = Role.builder()
             .roleName("PROFIL_VALIDATEUR")
-            .description("Validator - Can view and validate partner and transfer records")
+            .description("Validator - Can view and validate partner records")
             .isActive(true)
             .build();
         roleRepository.save(validateurRole);
 
         assignPermissionsToRole(validateurRole, "PARTNER_LIST_ALL", "PARTNER_VALIDATE",
             "PARTNER_REJECT", "PARTNER_VALIDATION_LIST", "PARTNER_EXPORT",
-            "PARTNER_VALIDATION_VIEW", "TRANSFER_VIEW_OWN");
+            "PARTNER_VALIDATION_VIEW");
         log.info("Created role: PROFIL_VALIDATEUR");
 
         // Role 3: PROFIL_CONSULTATION - Consultation (Read-only access)
         Role consultationRole = Role.builder()
             .roleName("PROFIL_CONSULTATION")
-            .description("Consultation - Read-only access to partner and transfer records")
+            .description("Consultation - Read-only access to partner records")
             .isActive(true)
             .build();
         roleRepository.save(consultationRole);
 
-        assignPermissionsToRole(consultationRole, "PARTNER_LIST_ALL", "TRANSFER_VIEW_OWN",
-            "PARTNER_VALIDATION_VIEW");
+        assignPermissionsToRole(consultationRole, "PARTNER_LIST_ALL",
+            "PARTNER_VALIDATION_VIEW", "PARTNER_EXPORT");
         log.info("Created role: PROFIL_CONSULTATION");
 
-        // Role 4: PROFIL_ADMIN_CENTRAL - Full Admin (All permissions)
+        // Role 4: PROFIL_ADMIN_CENTRAL - Administration only
         Role adminRole = Role.builder()
             .roleName("PROFIL_ADMIN_CENTRAL")
-            .description("Central Admin - Full system access including user and role management")
+            .description("Central Admin - User, role, permission and audit management")
             .isActive(true)
             .build();
         roleRepository.save(adminRole);
 
-        // Assign ALL permissions to admin role
-        List<Permission> allPermissions = permissionRepository.findAllActive();
-        for (Permission permission : allPermissions) {
-            RolePermission rolePermission = RolePermission.builder()
+        reconcileAdminPermissions();
+    }
+
+    private void reconcileAdminPermissions() {
+        Role adminRole = roleRepository.findByRoleName("PROFIL_ADMIN_CENTRAL").orElse(null);
+        if (adminRole == null) {
+            return;
+        }
+
+        List<RolePermission> existingAssignments = rolePermissionRepository.findByRoleId(adminRole.getId());
+        for (RolePermission assignment : existingAssignments) {
+            String permissionName = assignment.getPermission().getPermissionName();
+            if (!permissionName.startsWith("ADMIN_") && !permissionName.equals("AUDIT_LOG_VIEW")) {
+                rolePermissionRepository.delete(assignment);
+            }
+        }
+
+        log.info("Reconciled PROFIL_ADMIN_CENTRAL permissions to administration and audit only");
+    }
+
+    private void reconcileAdminPermissionUpdate() {
+        Role adminRole = roleRepository.findByRoleName("PROFIL_ADMIN_CENTRAL").orElse(null);
+        Permission permission = permissionRepository.findByPermissionName("ADMIN_PERMISSION_UPDATE")
+            .orElseGet(() -> permissionRepository.save(Permission.builder()
+                .permissionName("ADMIN_PERMISSION_UPDATE")
+                .endpoint("/admin/permissions/*")
+                .httpMethod("PUT")
+                .description("Activate or deactivate permissions")
+                .requiresOwnerCheck(false)
+                .isActive(true)
+                .build()));
+
+        if (adminRole != null
+                && rolePermissionRepository.findByRoleAndPermission(adminRole.getId(), permission.getId()).isEmpty()) {
+            rolePermissionRepository.save(RolePermission.builder()
                 .role(adminRole)
                 .permission(permission)
-                .build();
-            rolePermissionRepository.save(rolePermission);
+                .build());
         }
-        log.info("Created role: PROFIL_ADMIN_CENTRAL with {} permissions", allPermissions.size());
+    }
+
+    /**
+     * Lets the central admin see aggregated partner counts on the dashboard
+     * (no access to the partner records themselves).
+     */
+    private void reconcileAdminPartnerStatsPermission() {
+        Role adminRole = roleRepository.findByRoleName("PROFIL_ADMIN_CENTRAL").orElse(null);
+        Permission permission = permissionRepository.findByPermissionName("ADMIN_PARTNER_STATS")
+            .orElseGet(() -> permissionRepository.save(Permission.builder()
+                .permissionName("ADMIN_PARTNER_STATS")
+                .endpoint("/admin/stats/partners")
+                .httpMethod("GET")
+                .description("View aggregated partner counts (dashboard)")
+                .requiresOwnerCheck(false)
+                .isActive(true)
+                .build()));
+
+        if (adminRole != null
+                && rolePermissionRepository.findByRoleAndPermission(adminRole.getId(), permission.getId()).isEmpty()) {
+            rolePermissionRepository.save(RolePermission.builder()
+                .role(adminRole)
+                .permission(permission)
+                .build());
+        }
+    }
+
+    private void reconcilePartnerExportPermission() {
+        Permission exportPermission = permissionRepository.findByPermissionName("PARTNER_EXPORT").orElse(null);
+        if (exportPermission == null) {
+            log.warn("PARTNER_EXPORT permission not found");
+            return;
+        }
+
+        for (String roleName : List.of("PROFIL_SAISIE", "PROFIL_VALIDATEUR", "PROFIL_CONSULTATION")) {
+            Role role = roleRepository.findByRoleName(roleName).orElse(null);
+            if (role == null || rolePermissionRepository.findByRoleAndPermission(role.getId(), exportPermission.getId()).isPresent()) {
+                continue;
+            }
+
+            rolePermissionRepository.save(RolePermission.builder()
+                .role(role)
+                .permission(exportPermission)
+                .build());
+            log.info("Assigned PARTNER_EXPORT to {}", roleName);
+        }
+    }
+
+    private void reconcileRemovedTransferPermissions() {
+        permissionRepository.findAllForAdmin().stream()
+            .filter(permission -> permission.getPermissionName().startsWith("TRANSFER_")
+                    || permission.getPermissionName().equals("PARTNER_DELETE"))
+            .filter(permission -> Boolean.TRUE.equals(permission.getIsActive()))
+            .forEach(permission -> {
+                permission.setIsActive(false);
+                permissionRepository.save(permission);
+            });
+    }
+
+    private void reconcilePartnerStatusPermission() {
+        Permission permission = permissionRepository.findByPermissionName("PARTNER_STATUS_CHANGE")
+            .orElseGet(() -> permissionRepository.save(Permission.builder()
+                .permissionName("PARTNER_STATUS_CHANGE")
+                .endpoint("/v1/partners/*/status")
+                .httpMethod("PATCH")
+                .description("Activate or deactivate a partner")
+                .requiresOwnerCheck(false)
+                .isActive(true)
+                .build()));
+        Role saisieRole = roleRepository.findByRoleName("PROFIL_SAISIE").orElse(null);
+        if (saisieRole != null
+                && rolePermissionRepository.findByRoleAndPermission(saisieRole.getId(), permission.getId()).isEmpty()) {
+            rolePermissionRepository.save(RolePermission.builder()
+                .role(saisieRole)
+                .permission(permission)
+                .build());
+        }
     }
 
     /**
@@ -467,95 +603,4 @@ public class DatabaseInitializer implements ApplicationRunner {
         }
     }
 
-    /**
-     * Create test users with their respective roles
-     * Test Users:
-     * 1. Admin: admin with PROFIL_ADMIN_CENTRAL role
-     * 2. Data Entry: sarah with PROFIL_SAISIE role
-     * 3. Validator: validator with PROFIL_VALIDATEUR role
-     */
-    private void createTestUsers() {
-        log.info("Creating test users...");
-
-        // Get roles
-        Role adminRole = roleRepository.findByRoleName("PROFIL_ADMIN_CENTRAL").orElse(null);
-        Role saisieRole = roleRepository.findByRoleName("PROFIL_SAISIE").orElse(null);
-        Role validateurRole = roleRepository.findByRoleName("PROFIL_VALIDATEUR").orElse(null);
-
-        if (adminRole == null || saisieRole == null || validateurRole == null) {
-            log.warn("Could not create test users: Roles not found");
-            return;
-        }
-
-        // Test User 1: Admin
-        if (!userRepository.findByUsername("admin").isPresent()) {
-            User adminUser = new User();
-            adminUser.setUsername("admin");
-            adminUser.setEmail("admin@enrollment.local");
-            adminUser.setFirstName("Admin");
-            adminUser.setLastName("Central");
-            adminUser.setIsActive(true);
-            adminUser.setCreatedAt(LocalDateTime.now());
-            adminUser.setUpdatedAt(LocalDateTime.now());
-
-            User savedAdmin = userRepository.save(adminUser);
-
-            UserRole adminUserRole = new UserRole();
-            adminUserRole.setUser(savedAdmin);
-            adminUserRole.setRole(adminRole);
-            adminUserRole.setAssignedAt(LocalDateTime.now());
-            adminUserRole.setAssignedBy("system");
-            userRoleRepository.save(adminUserRole);
-
-            log.info("Created test user: admin with PROFIL_ADMIN_CENTRAL role");
-        }
-
-        // Test User 2: Data Entry (Sarah)
-        if (!userRepository.findByUsername("sarah").isPresent()) {
-            User sarahUser = new User();
-            sarahUser.setUsername("sarah");
-            sarahUser.setEmail("sarah@enrollment.local");
-            sarahUser.setFirstName("Sarah");
-            sarahUser.setLastName("DataEntry");
-            sarahUser.setIsActive(true);
-            sarahUser.setCreatedAt(LocalDateTime.now());
-            sarahUser.setUpdatedAt(LocalDateTime.now());
-
-            User savedSarah = userRepository.save(sarahUser);
-
-            UserRole sarahUserRole = new UserRole();
-            sarahUserRole.setUser(savedSarah);
-            sarahUserRole.setRole(saisieRole);
-            sarahUserRole.setAssignedAt(LocalDateTime.now());
-            sarahUserRole.setAssignedBy("system");
-            userRoleRepository.save(sarahUserRole);
-
-            log.info("Created test user: sarah with PROFIL_SAISIE role");
-        }
-
-        // Test User 3: Validator
-        if (!userRepository.findByUsername("validator").isPresent()) {
-            User validatorUser = new User();
-            validatorUser.setUsername("validator");
-            validatorUser.setEmail("validator@enrollment.local");
-            validatorUser.setFirstName("Jean");
-            validatorUser.setLastName("Validateur");
-            validatorUser.setIsActive(true);
-            validatorUser.setCreatedAt(LocalDateTime.now());
-            validatorUser.setUpdatedAt(LocalDateTime.now());
-
-            User savedValidator = userRepository.save(validatorUser);
-
-            UserRole validatorUserRole = new UserRole();
-            validatorUserRole.setUser(savedValidator);
-            validatorUserRole.setRole(validateurRole);
-            validatorUserRole.setAssignedAt(LocalDateTime.now());
-            validatorUserRole.setAssignedBy("system");
-            userRoleRepository.save(validatorUserRole);
-
-            log.info("Created test user: validator with PROFIL_VALIDATEUR role");
-        }
-
-        log.info("Test users setup completed");
-    }
 }

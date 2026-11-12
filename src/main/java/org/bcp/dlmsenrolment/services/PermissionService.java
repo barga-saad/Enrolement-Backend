@@ -41,7 +41,7 @@ public class PermissionService {
         log.info("Creating new permission: {}", dto.getPermissionName());
 
         // Check if permission already exists
-        if (permissionRepository.existsByPermissionNameActive(dto.getPermissionName())) {
+        if (permissionRepository.existsByPermissionName(dto.getPermissionName())) {
             throw new RuntimeException("Permission with name '" + dto.getPermissionName() + "' already exists");
         }
 
@@ -66,7 +66,6 @@ public class PermissionService {
      */
     public PermissionResponseDto getPermissionById(Long id) {
         return permissionRepository.findById(id)
-            .filter(p -> !p.isDeleted())
             .map(this::mapToResponseDto)
             .orElseThrow(() -> new RuntimeException("Permission not found: " + id));
     }
@@ -84,7 +83,7 @@ public class PermissionService {
      * Get all active permissions
      */
     public List<PermissionResponseDto> getAllPermissions() {
-        return permissionRepository.findAllActive()
+        return permissionRepository.findAllForAdmin()
             .stream()
             .map(this::mapToResponseDto)
             .collect(Collectors.toList());
@@ -119,10 +118,6 @@ public class PermissionService {
         Permission permission = permissionRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Permission not found: " + id));
 
-        if (permission.isDeleted()) {
-            throw new RuntimeException("Cannot update deleted permission: " + id);
-        }
-
         if (dto.getDescription() != null) {
             permission.setDescription(dto.getDescription());
         }
@@ -130,49 +125,17 @@ public class PermissionService {
             permission.setRequiresOwnerCheck(dto.getRequiresOwnerCheck());
         }
         if (dto.getIsActive() != null) {
-            permission.setIsActive(dto.getIsActive());
+            if (dto.getIsActive()) {
+                permission.activate();
+            } else {
+                permission.deactivate();
+            }
         }
 
         Permission updated = permissionRepository.save(permission);
         log.info("Permission updated successfully: {}", id);
 
         return mapToResponseDto(updated);
-    }
-
-    /**
-     * Soft-delete permission
-     */
-    public void deletePermission(Long id) {
-        log.warn("Deleting permission: {}", id);
-
-        Permission permission = permissionRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Permission not found: " + id));
-
-        if (permission.isDeleted()) {
-            throw new RuntimeException("Permission already deleted: " + id);
-        }
-
-        permission.softDelete();
-        permissionRepository.save(permission);
-        log.info("Permission soft-deleted successfully: {}", id);
-    }
-
-    /**
-     * Restore a soft-deleted permission
-     */
-    public void restorePermission(Long id) {
-        log.info("Restoring permission: {}", id);
-
-        Permission permission = permissionRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Permission not found: " + id));
-
-        if (!permission.isDeleted()) {
-            throw new RuntimeException("Permission is not deleted: " + id);
-        }
-
-        permission.restore();
-        permissionRepository.save(permission);
-        log.info("Permission restored successfully: {}", id);
     }
 
     /**

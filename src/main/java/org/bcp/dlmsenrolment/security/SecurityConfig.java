@@ -3,6 +3,7 @@ package org.bcp.dlmsenrolment.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -146,17 +147,11 @@ public class SecurityConfig {
      * - Credentials: Include cookies if needed
      */
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins}") String allowedOrigins) {
         CorsConfiguration configuration = new CorsConfiguration();
-        
-        // TODO: Change in production to your actual frontend URL
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:5173",      // Vite React dev server
-            "http://localhost:3000",      // Local React dev server (Create React App)
-            "http://localhost:3001",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000"
-        ));
+
+        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
         
         configuration.setAllowedMethods(Arrays.asList(
             "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"
@@ -167,8 +162,7 @@ public class SecurityConfig {
             "Content-Type",
             "X-Request-Id",
             "X-Requested-With",
-            "Accept",
-            "Access-Control-Allow-Origin"
+            "Accept"
         ));
 
         configuration.setExposedHeaders(Arrays.asList(
@@ -184,7 +178,7 @@ public class SecurityConfig {
     }
 
     /**
-     * JwtAuthenticationConverter — extracts 'preferred_username' from Keycloak JWT
+     * JwtAuthenticationConverter - extracts 'preferred_username' from Keycloak JWT
      * as the principal name instead of the default 'sub' (UUID).
      *
      * Without this, authentication.getName() returns the Keycloak user UUID.

@@ -24,5 +24,4 @@ public class LoginResponse {
     private String firstName;
     private String lastName;
     private List<String> roleNames;
-    private boolean requiresPasswordChange;
 }

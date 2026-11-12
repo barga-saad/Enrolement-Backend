@@ -1,7 +1,7 @@
 package org.bcp.dlmsenrolment.services;
 
 /**
- * AuditService — Central service for writing audit log entries.
+ * AuditService - Central service for writing audit log entries.
  *
  * Inject this wherever you need to trace an action:
  *   auditService.log(username, "CREATE_USER", "USER", userId, "User john created");

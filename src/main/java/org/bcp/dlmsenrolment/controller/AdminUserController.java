@@ -27,7 +27,7 @@ import java.util.List;
  * GET    /admin/users                    - List all users
  * GET    /admin/users/{id}               - Get user by ID
  * PUT    /admin/users/{id}               - Update user
- * DELETE /admin/users/{id}               - Soft-delete user
+ * DELETE /admin/users/{id}               - Deactivate user (legacy route)
  * POST   /admin/users/{userId}/roles     - Assign role to user
  * DELETE /admin/users/{userId}/roles/{roleId} - Revoke role from user
  * GET    /admin/users/{userId}/roles     - Get user's roles
@@ -81,33 +81,35 @@ public class AdminUserController {
     }
 
     /**
-     * PUT /admin/users/{id} - Update user
+    * PUT /admin/users/{id} - Update user details and active status
      */
     @PutMapping("/{id}")
     @Operation(summary = "Update user")
     public ResponseEntity<UserResponseDto> updateUser(
             @PathVariable Long id,
-            @Valid @RequestBody UserUpdateRequestDto request) {
+            @Valid @RequestBody UserUpdateRequestDto request,
+            Authentication authentication) {
         log.info("Updating user: {}", id);
-        UserResponseDto response = userService.updateUser(id, request);
-        auditService.log(null, "UPDATE_USER", "USER", id,
+        String updatedByUsername = SecurityUtils.getUsername(authentication);
+        UserResponseDto response = userService.updateUser(id, request, updatedByUsername);
+        auditService.log(updatedByUsername, "UPDATE_USER", "USER", id,
                 "User " + id + " updated");
         return ResponseEntity.ok(response);
     }
 
     /**
-     * DELETE /admin/users/{id} - Soft-delete user
+    * DELETE /admin/users/{id} - Deactivate user (kept for API compatibility)
      */
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete user")
+    @Operation(summary = "Deactivate user")
     public ResponseEntity<Void> deleteUser(
             @PathVariable Long id,
             Authentication authentication) {
-        log.warn("Deleting user: {}", id);
-        String deletedByUsername = SecurityUtils.getUsername(authentication);
-        userService.deleteUser(id, deletedByUsername);
-        auditService.log(deletedByUsername, "DELETE_USER", "USER", id,
-                "User " + id + " deleted by " + deletedByUsername);
+        log.info("Deactivating user: {}", id);
+        String deactivatedByUsername = SecurityUtils.getUsername(authentication);
+        userService.deleteUser(id, deactivatedByUsername);
+        auditService.log(deactivatedByUsername, "DEACTIVATE_USER", "USER", id,
+            "User " + id + " deactivated by " + deactivatedByUsername);
         return ResponseEntity.noContent().build();
     }
 

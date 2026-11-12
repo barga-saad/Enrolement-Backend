@@ -111,6 +111,15 @@ public class Role {
      * Restore a soft-deleted role
      */
     public void restore() {
+        activate();
+    }
+
+    public void deactivate() {
+        this.deletedAt = null;
+        this.isActive = false;
+    }
+
+    public void activate() {
         this.deletedAt = null;
         this.isActive = true;
     }

@@ -9,6 +9,8 @@ import org.bcp.dlmsenrolment.dtos.respons.UserResponseDto;
 import org.bcp.dlmsenrolment.entities.Role;
 import org.bcp.dlmsenrolment.entities.User;
 import org.bcp.dlmsenrolment.entities.UserRole;
+import org.bcp.dlmsenrolment.excptions.ForbiddenOperationException;
+import org.bcp.dlmsenrolment.security.Profiles;
 import org.bcp.dlmsenrolment.repositories.RoleRepository;
 import org.bcp.dlmsenrolment.repositories.UserRepository;
 import org.bcp.dlmsenrolment.repositories.UserRoleRepository;
@@ -55,12 +57,12 @@ public class UserService {
         log.info("Creating new user: {}", dto.getUsername());
 
         // Check if user already exists
-        if (userRepository.existsByUsernameActive(dto.getUsername())) {
+        if (userRepository.existsByUsername(dto.getUsername())) {
             throw new RuntimeException("User with username '" + dto.getUsername() + "' already exists");
         }
 
         // Check if email already exists
-        if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
+        if (userRepository.findByEmailIncludingDeleted(dto.getEmail()).isPresent()) {
             throw new RuntimeException("User with email '" + dto.getEmail() + "' already exists");
         }
 
@@ -102,7 +104,7 @@ public class UserService {
      * Get all active users
      */
     public List<UserResponseDto> getAllUsers() {
-        return userRepository.findAllActive()
+        return userRepository.findAllForAdmin()
             .stream()
             .map(this::mapToResponseDto)
             .collect(Collectors.toList());
@@ -111,15 +113,12 @@ public class UserService {
     /**
      * Update user details
      */
-    public UserResponseDto updateUser(Long id, UserUpdateRequestDto dto) {
+    public UserResponseDto updateUser(Long id, UserUpdateRequestDto dto, String updatedByUsername) {
         log.info("Updating user: {}", id);
 
         User user = userRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("User not found: " + id));
-
-        if (user.isDeleted()) {
-            throw new RuntimeException("Cannot update deleted user: " + id);
-        }
+        ensureCanManageUser(updatedByUsername, user);
 
         if (dto.getFirstName() != null) {
             user.setFirstName(dto.getFirstName());
@@ -128,7 +127,11 @@ public class UserService {
             user.setLastName(dto.getLastName());
         }
         if (dto.getIsActive() != null) {
-            user.setIsActive(dto.getIsActive());
+            if (dto.getIsActive()) {
+                user.activate();
+            } else {
+                deactivateUser(user, updatedByUsername);
+            }
         }
 
         User updated = userRepository.save(user);
@@ -141,24 +144,20 @@ public class UserService {
      * Soft-delete user
      */
     public void deleteUser(Long id, String deletedByUsername) {
-        log.warn("Deleting user: {} by {}", id, deletedByUsername);
+        log.info("Deactivating user: {} by {}", id, deletedByUsername);
 
         User user = userRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("User not found: " + id));
+        ensureCanManageUser(deletedByUsername, user);
 
-        if (user.isDeleted()) {
-            throw new RuntimeException("User already deleted: " + id);
+        if (!Boolean.TRUE.equals(user.getIsActive()) && !user.isDeleted()) {
+            throw new RuntimeException("User already inactive: " + id);
         }
 
-        // Soft-delete user
-        user.softDelete(deletedByUsername);
-
-        // Soft-delete all user's roles (userRoles cascade)
-        userRoleRepository.findActiveRolesByUserId(id)
-            .forEach(ur -> ur.revoke(deletedByUsername));
+        deactivateUser(user, deletedByUsername);
 
         userRepository.save(user);
-        log.info("User soft-deleted successfully: {}", id);
+        log.info("User deactivated successfully: {}", id);
     }
 
     /**
@@ -174,7 +173,7 @@ public class UserService {
             throw new RuntimeException("User is not deleted: " + id);
         }
 
-        user.restore();
+        user.activate();
         userRepository.save(user);
         log.info("User restored successfully: {}", id);
     }
@@ -190,18 +189,28 @@ public class UserService {
 
         Role role = roleRepository.findById(roleId)
             .orElseThrow(() -> new RuntimeException("Role not found: " + roleId));
+        ensureCanManageUser(assignedByUsername, user);
+        ensureCanGrantRole(assignedByUsername, role);
 
-        if (user.isDeleted()) {
-            throw new RuntimeException("Cannot assign role to deleted user");
+        if (user.isDeleted() || !Boolean.TRUE.equals(user.getIsActive())) {
+            throw new RuntimeException("Cannot assign role to inactive user");
         }
 
-        if (role.isDeleted()) {
-            throw new RuntimeException("Cannot assign deleted role");
+        if (role.isDeleted() || !Boolean.TRUE.equals(role.getIsActive())) {
+            throw new RuntimeException("Cannot assign inactive role");
         }
 
-        // Check if already assigned
-        if (userRoleRepository.userHasRole(userId, roleId)) {
-            throw new RuntimeException("User already has this role");
+        Optional<UserRole> existingAssignment = userRoleRepository.findByUserAndRole(userId, roleId);
+        if (existingAssignment.isPresent()) {
+            UserRole assignment = existingAssignment.get();
+            if (assignment.isActive()) {
+                throw new RuntimeException("User already has this role");
+            }
+            assignment.restore();
+            assignment.setAssignedBy(assignedByUsername);
+            userRoleRepository.save(assignment);
+            log.info("Role assignment restored: user {} <- role {}", userId, roleId);
+            return;
         }
 
         // Create new user-role mapping
@@ -222,6 +231,8 @@ public class UserService {
 
         UserRole userRole = userRoleRepository.findByUserAndRole(userId, roleId)
             .orElseThrow(() -> new RuntimeException("User-role assignment not found"));
+        ensureCanManageUser(revokedByUsername, userRole.getUser());
+        ensureCanGrantRole(revokedByUsername, userRole.getRole());
 
         if (!userRole.isActive()) {
             throw new RuntimeException("Role is already revoked for this user");
@@ -240,6 +251,48 @@ public class UserService {
             .stream()
             .map(ur -> ur.getRole().getRoleName())
             .collect(Collectors.toList());
+    }
+
+    // ===== Profile restrictions (agent d'habilitation) =====
+
+    private boolean isCentralAdmin(String username) {
+        return username != null && activeRoleNames(username).contains(Profiles.ADMIN_CENTRAL);
+    }
+
+    private java.util.Set<String> activeRoleNames(String username) {
+        return userRoleRepository.findActiveRolesByUsername(username).stream()
+            .map(ur -> ur.getRole().getRoleName())
+            .collect(Collectors.toSet());
+    }
+
+    /** Only a central admin may grant or revoke roles other than agent d'enrôlement / consultant. */
+    private void ensureCanGrantRole(String actorUsername, Role role) {
+        if (isCentralAdmin(actorUsername)) {
+            return;
+        }
+        if (!Profiles.ASSIGNABLE_BY_HABILITATION.contains(role.getRoleName())) {
+            throw new ForbiddenOperationException(
+                "Only a central administrator can assign or revoke the role " + role.getRoleName());
+        }
+    }
+
+    /** Only a central admin may modify an account holding PROFIL_ADMIN_CENTRAL or PROFIL_AGENT_HABILITATION. */
+    private void ensureCanManageUser(String actorUsername, User target) {
+        if (isCentralAdmin(actorUsername)) {
+            return;
+        }
+        boolean protectedTarget = userRoleRepository.findActiveRolesByUserId(target.getId()).stream()
+            .anyMatch(ur -> Profiles.PROTECTED_FROM_HABILITATION.contains(ur.getRole().getRoleName()));
+        if (protectedTarget) {
+            throw new ForbiddenOperationException(
+                "Only a central administrator can modify an administrator or habilitation agent account");
+        }
+    }
+
+    private void deactivateUser(User user, String deactivatedByUsername) {
+        user.deactivate();
+        userRoleRepository.findActiveRolesByUserId(user.getId())
+            .forEach(userRole -> userRole.revoke(deactivatedByUsername));
     }
 
     /**

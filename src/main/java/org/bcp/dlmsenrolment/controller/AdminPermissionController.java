@@ -70,19 +70,6 @@ public class AdminPermissionController {
         return ResponseEntity.ok(response);
     }
 
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Delete permission")
-    public ResponseEntity<Void> deletePermission(
-            @PathVariable Long id,
-            Authentication authentication) {
-        log.warn("Deleting permission: {}", id);
-        permissionService.deletePermission(id);
-        String actor = SecurityUtils.getUsername(authentication);
-        auditService.log(actor, "DELETE_PERMISSION", "PERMISSION", id,
-                "Permission " + id + " deleted by " + actor);
-        return ResponseEntity.noContent().build();
-    }
-
     @GetMapping("/owner-check/true")
     @Operation(summary = "Get permissions requiring owner check")
     public ResponseEntity<List<PermissionResponseDto>> getPermissionsRequiringOwnerCheck() {

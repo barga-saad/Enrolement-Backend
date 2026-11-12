@@ -29,4 +29,6 @@ public interface PartnerRepository extends JpaRepository<Partner, Long> {
     List<Partner> findByEnrollmentType(String enrollmentType);
 
     List<Partner> findByWorkflowStatus(String workflowStatus);
+
+    long countByWorkflowStatus(String workflowStatus);
 }

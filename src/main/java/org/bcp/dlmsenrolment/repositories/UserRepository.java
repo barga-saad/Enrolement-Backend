@@ -30,6 +30,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE u.username = :username AND u.deletedAt IS NULL")
     Optional<User> findByUsername(@Param("username") String username);
 
+    @Query("SELECT u FROM User u WHERE u.username = :username")
+    Optional<User> findByUsernameIncludingDeleted(@Param("username") String username);
+
     /**
      * Find active user by email (NOT soft-deleted)
      */
@@ -41,6 +44,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT u FROM User u WHERE u.deletedAt IS NULL ORDER BY u.username ASC")
     List<User> findAllActive();
+
+    @Query("SELECT u FROM User u ORDER BY u.username ASC")
+    List<User> findAllForAdmin();
 
     /**
      * Find all active users by specific role
@@ -67,4 +73,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE u.username = :username AND u.deletedAt IS NULL")
     boolean existsByUsernameActive(@Param("username") String username);
+
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE u.username = :username")
+    boolean existsByUsername(@Param("username") String username);
+
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    Optional<User> findByEmailIncludingDeleted(@Param("email") String email);
 }

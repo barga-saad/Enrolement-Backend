@@ -8,11 +8,9 @@ import org.bcp.dlmsenrolment.mappers.DtoMapper;
 import org.bcp.dlmsenrolment.services.DispatcherService;
 import org.bcp.dlmsenrolment.services.PartnerCurrencyService;
 import org.bcp.dlmsenrolment.services.PartnerService;
-import org.bcp.dlmsenrolment.services.TransferService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.util.HashMap;
 //import jakarta.validation.*;
 
@@ -24,14 +22,12 @@ public class DispatcherServiceImpl implements DispatcherService {
 
     private final PartnerService partnerService;
     private final PartnerCurrencyService partnerCurrencyService;
-    private final TransferService transferService;
 //    private final Validator validator;
     private final ObjectMapper objectMapper;
 
-    public DispatcherServiceImpl(PartnerService partnerService, PartnerCurrencyService partnerCurrencyService, TransferService transferService, ObjectMapper objectMapper) {
+    public DispatcherServiceImpl(PartnerService partnerService, PartnerCurrencyService partnerCurrencyService, ObjectMapper objectMapper) {
         this.partnerService = partnerService;
         this.partnerCurrencyService = partnerCurrencyService;
-        this.transferService = transferService;
 //        this.validator = validator;
         this.objectMapper = objectMapper;
     }
@@ -48,18 +44,7 @@ public class DispatcherServiceImpl implements DispatcherService {
     }
 
     @Override
-    public ResponseEntity<?> delete(String tableName, String referenceNumber) {
-        if ("partner".equalsIgnoreCase(tableName)) {
-            return partnerService.deletePartner(referenceNumber);
-        } else if ("partnercurrency".equalsIgnoreCase(tableName)) {
-            return partnerCurrencyService.deletePartnerCurrencies(referenceNumber);
-        } else {
-            throw new UnsupportedOperationException("Delete not supported for table: " + tableName);
-        }
-    }
-
-    @Override
-    public ResponseEntity<?> read(String tableName, String partnerReferenceNumber, LocalDate startDate, LocalDate endDate) {
+    public ResponseEntity<?> read(String tableName, String partnerReferenceNumber) {
         if ("partner".equalsIgnoreCase(tableName) || "partners".equalsIgnoreCase(tableName)) {
             if (partnerReferenceNumber != null) {
                 return partnerService.getPartner(partnerReferenceNumber);
@@ -68,11 +53,6 @@ public class DispatcherServiceImpl implements DispatcherService {
 
         } else if ("partnercurrency".equalsIgnoreCase(tableName) || "partnercurrencies".equalsIgnoreCase(tableName)) {
             return partnerCurrencyService.getPartnerCurrencies(partnerReferenceNumber);
-        } else if ("transfer".equalsIgnoreCase(tableName) || "transfers".equalsIgnoreCase(tableName)) {
-            if (startDate != null && endDate != null) {
-                return transferService.getAllTransfersByPartnerIdAndStartDateAndEndDate(partnerReferenceNumber, startDate, endDate);
-            }
-            return transferService.getAllTransfersByPartnerReferenceNumber(partnerReferenceNumber);
         } else {
             throw new UnsupportedOperationException("Read not supported for table: " + tableName);
         }

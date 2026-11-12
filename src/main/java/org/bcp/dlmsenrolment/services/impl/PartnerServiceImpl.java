@@ -4,16 +4,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.request.PartnerRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerResponseDto;
 import org.bcp.dlmsenrolment.entities.Partner;
+import org.bcp.dlmsenrolment.entities.PartnerCurrency;
 import org.bcp.dlmsenrolment.entities.PartnerValidation;
 import org.bcp.dlmsenrolment.excptions.ApiResponse;
 import org.bcp.dlmsenrolment.excptions.PartnerNotFoundException;
 import org.bcp.dlmsenrolment.mappers.PartnerMapper;
 import org.bcp.dlmsenrolment.repositories.PartnerRepository;
+import org.bcp.dlmsenrolment.repositories.PartnerCurrencyRepository;
 import org.bcp.dlmsenrolment.repositories.PartnerValidationRepository;
 import org.bcp.dlmsenrolment.security.SecurityUtils;
 import org.bcp.dlmsenrolment.services.PartnerReferenceNumberService;
 import org.bcp.dlmsenrolment.services.PartnerService;
+import org.bcp.dlmsenrolment.utils.PartnerValueNormalizer;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +29,18 @@ import java.util.List;
 public class PartnerServiceImpl implements PartnerService {
     private final PartnerRepository partnerRepository;
     private final PartnerMapper partnerMapper;
+        private final PartnerCurrencyRepository partnerCurrencyRepository;
     private final PartnerValidationRepository partnerValidationRepository;
     private final PartnerReferenceNumberService referenceNumberService;
 
     public PartnerServiceImpl(PartnerRepository partnerRepository,
                               PartnerMapper partnerMapper,
+                                                          PartnerCurrencyRepository partnerCurrencyRepository,
                               PartnerValidationRepository partnerValidationRepository,
                               PartnerReferenceNumberService referenceNumberService) {
         this.partnerRepository = partnerRepository;
         this.partnerMapper = partnerMapper;
+                this.partnerCurrencyRepository = partnerCurrencyRepository;
         this.partnerValidationRepository = partnerValidationRepository;
         this.referenceNumberService = referenceNumberService;
     }
@@ -62,16 +69,27 @@ public class PartnerServiceImpl implements PartnerService {
         String refNumber = referenceNumberService.generateNextReferenceNumber();
 
         Partner partner = partnerMapper.toEntity(partnerRequestDto);
+        PartnerValueNormalizer.normalize(partner);
+        PartnerValueNormalizer.applyRib(partner, partnerRequestDto.getAccountNumber());
         partner.setPartnerReferenceNumber(refNumber);
 
         String username = getCurrentUsername();
         partner.setCreatedBy(username);
         partner.setWorkflowStatus("DRAFT");
+        // A new partner is INACTIVE until it is validated (see PartnerValidationServiceImpl.validate)
+        partner.setPartnerStatus("INACTIVE");
         if (partner.getEnrollmentType() == null) {
             partner.setEnrollmentType("PARTNER");
         }
 
         Partner savedPartner = partnerRepository.save(partner);
+
+                if (savedPartner.getMainCurrency() != null && !savedPartner.getMainCurrency().isBlank()) {
+                        PartnerCurrency partnerCurrency = new PartnerCurrency();
+                        partnerCurrency.setPartner(savedPartner);
+                        partnerCurrency.setCurrency(savedPartner.getMainCurrency().trim().toUpperCase());
+                        partnerCurrencyRepository.save(partnerCurrency);
+                }
 
         // Auto-create a DRAFT validation record
         PartnerValidation validation = PartnerValidation.builder()
@@ -95,7 +113,13 @@ public class PartnerServiceImpl implements PartnerService {
                 .orElseThrow(() -> new PartnerNotFoundException(
                         "Cannot update. No partner found with reference number: " + partnerRequestDto.getPartnerReferenceNumber()
                 ));
-        Partner updated = partnerRepository.save(updatePartnerFromDto(partner, partnerRequestDto));
+        if (!PartnerValueNormalizer.isActive(partner.getPartnerStatus())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("PARTNER_INACTIVE", "Inactive partners cannot be modified", "partnerStatus"));
+        }
+        Partner updated = updatePartnerFromDto(partner, partnerRequestDto);
+        PartnerValueNormalizer.normalize(updated);
+        updated = partnerRepository.save(updated);
 
         // Auto-create a PENDING validation for the update (requires re-validation)
         String username = getCurrentUsername();
@@ -112,26 +136,24 @@ public class PartnerServiceImpl implements PartnerService {
     }
 
     @Override
-    public ResponseEntity<ApiResponse<PartnerResponseDto>> deletePartner(String referenceNumber) {
+    public ResponseEntity<ApiResponse<PartnerResponseDto>> updatePartnerStatus(String referenceNumber, String status) {
         Partner partner = partnerRepository.findByPartnerReferenceNumber(referenceNumber)
                 .orElseThrow(() -> new PartnerNotFoundException(
-                        "Cannot delete. No partner found with reference number: " + referenceNumber
-                ));
-        PartnerResponseDto response = partnerMapper.toResponseDto(partner);
-        partnerRepository.delete(partner);
-        return ResponseEntity.ok(ApiResponse.success("Partner deleted successfully.", response));
+                        "No partner found with reference number: " + referenceNumber));
+        partner.setPartnerStatus(status.toUpperCase());
+        Partner updated = partnerRepository.save(partner);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Partner status updated successfully.", partnerMapper.toResponseDto(updated)));
     }
-
 
     public Partner updatePartnerFromDto(Partner partner, PartnerRequestDto dto) {
         partner.setName(dto.getName());
         partner.setPartnerReferenceNumber(dto.getPartnerReferenceNumber());
         partner.setPartnerType(dto.getPartnerType());
-        partner.setPartnerStatus(dto.getPartnerStatus());
         partner.setHeadquarterCountry(dto.getHeadquarterCountry());
         partner.setParentCompanyCountry(dto.getParentCompanyCountry());
         partner.setClassification(dto.getClassification());
-        partner.setAccountNumber(dto.getAccountNumber());
+        PartnerValueNormalizer.applyRib(partner, dto.getAccountNumber());
 //        partner.setCurrencies(dto.getCurrencies().stream()
 //                .map(this::convertToPartnerCurrency) // You need to implement this method to convert DTO currency to entity
 //                .collect(Collectors.toSet()));
@@ -160,6 +182,7 @@ public class PartnerServiceImpl implements PartnerService {
         partner.setCommissionCurrency(dto.getCommissionCurrency());
         partner.setExchangeGainPercentage(dto.getExchangeGainPercentage());
         partner.setPaymentNature(dto.getPaymentNature());
+        partner.setAccountingType(dto.getAccountingType());
         partner.setFeeMode(dto.getFeeMode());
         partner.setMonthlyBilling(dto.getMonthlyBilling());
         partner.setImmediateDebit(dto.getImmediateDebit());
@@ -194,6 +217,21 @@ public class PartnerServiceImpl implements PartnerService {
         partner.setCommissionRateWallet(dto.getCommissionRateWallet());
         partner.setCommissionMinWallet(dto.getCommissionMinWallet());
         partner.setCommissionMaxWallet(dto.getCommissionMaxWallet());
+        partner.setCommissionTypeSrbmRtgs(dto.getCommissionTypeSrbmRtgs());
+        partner.setCommissionAmountSrbmRtgs(dto.getCommissionAmountSrbmRtgs());
+        partner.setCommissionRateSrbmRtgs(dto.getCommissionRateSrbmRtgs());
+        partner.setCommissionMinSrbmRtgs(dto.getCommissionMinSrbmRtgs());
+        partner.setCommissionMaxSrbmRtgs(dto.getCommissionMaxSrbmRtgs());
+        partner.setCommissionTypeForexReception(dto.getCommissionTypeForexReception());
+        partner.setCommissionAmountForexReception(dto.getCommissionAmountForexReception());
+        partner.setCommissionRateForexReception(dto.getCommissionRateForexReception());
+        partner.setCommissionMinForexReception(dto.getCommissionMinForexReception());
+        partner.setCommissionMaxForexReception(dto.getCommissionMaxForexReception());
+        partner.setCommissionTypeForexEmission(dto.getCommissionTypeForexEmission());
+        partner.setCommissionAmountForexEmission(dto.getCommissionAmountForexEmission());
+        partner.setCommissionRateForexEmission(dto.getCommissionRateForexEmission());
+        partner.setCommissionMinForexEmission(dto.getCommissionMinForexEmission());
+        partner.setCommissionMaxForexEmission(dto.getCommissionMaxForexEmission());
 
         // Enrollment type (do not override with null)
         if (dto.getEnrollmentType() != null) partner.setEnrollmentType(dto.getEnrollmentType());

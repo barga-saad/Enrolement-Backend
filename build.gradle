@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.bcp'
-version = '1.0.0-27032026-dev-0'
+version = '1.0.0-28102026-dev-0'
 description = 'dl-ms-enrolment'
 
 java {
@@ -21,7 +21,14 @@ configurations {
 }
 
 repositories {
-    mavenCentral()
+    maven {
+        url "https://repo-prod.gbp.cpm.net/repository/maven-central"
+        allowInsecureProtocol = true
+        credentials {
+            username "openedge"
+            password "Open@4011"
+        }
+    }
 }
 
 dependencies {

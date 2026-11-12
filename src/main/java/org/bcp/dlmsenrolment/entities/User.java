@@ -111,6 +111,16 @@ public class User {
      * Restore a soft-deleted user
      */
     public void restore() {
+        activate();
+    }
+
+    public void deactivate() {
+        this.isActive = false;
+        this.deletedAt = null;
+        this.deletedBy = null;
+    }
+
+    public void activate() {
         this.deletedAt = null;
         this.deletedBy = null;
         this.isActive = true;

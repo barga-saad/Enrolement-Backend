@@ -1,5 +1,6 @@
 package org.bcp.dlmsenrolment.services.impl;
 
+import org.bcp.dlmsenrolment.utils.PartnerValueNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerValidationResponseDto;
@@ -12,6 +13,7 @@ import org.bcp.dlmsenrolment.repositories.PartnerValidationRepository;
 import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.PartnerValidationService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +34,10 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> submitForValidation(Long partnerId, String username) {
         Partner partner = partnerRepository.findById(partnerId)
                 .orElseThrow(() -> new PartnerNotFoundException("No partner found with id: " + partnerId));
+        if (isDeactivated(partner)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("PARTNER_INACTIVE", "Cannot submit an inactive partner for validation", "partnerStatus"));
+        }
 
         // Transition existing DRAFT validation to PENDING (avoid duplicate records)
         List<PartnerValidation> drafts = validationRepository.findByPartnerIdAndWorkflowStatus(partnerId, "DRAFT");
@@ -66,6 +72,10 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> saveDraft(Long partnerId, String username) {
         Partner partner = partnerRepository.findById(partnerId)
                 .orElseThrow(() -> new PartnerNotFoundException("No partner found with id: " + partnerId));
+        if (isDeactivated(partner)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("PARTNER_INACTIVE", "Cannot create a draft for an inactive partner", "partnerStatus"));
+        }
 
         PartnerValidation validation = PartnerValidation.builder()
                 .partner(partner)
@@ -88,6 +98,11 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
         PartnerValidation validation = validationRepository.findById(validationId)
                 .orElseThrow(() -> new PartnerNotFoundException("No validation record found with id: " + validationId));
 
+        if (isDeactivated(validation.getPartner())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("PARTNER_INACTIVE", "Cannot validate an inactive partner", "partnerStatus"));
+        }
+
         if (!"PENDING".equals(validation.getWorkflowStatus())) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("INVALID_STATUS", "Only PENDING validations can be validated.", "workflowStatus"));
@@ -106,9 +121,10 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
 
         PartnerValidation saved = validationRepository.save(validation);
 
-        // Update the partner's own workflow status
+        // Update the partner's own workflow status; a validated partner becomes ACTIVE
         Partner partner = saved.getPartner();
         partner.setWorkflowStatus("VALIDATED");
+        partner.setPartnerStatus("ACTIVE");
         partnerRepository.save(partner);
 
         log.info("User {} validated partner validation {}", validatorUsername, validationId);
@@ -123,6 +139,11 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
     public ResponseEntity<ApiResponse<PartnerValidationResponseDto>> reject(Long validationId, String validatorUsername, String reason) {
         PartnerValidation validation = validationRepository.findById(validationId)
                 .orElseThrow(() -> new PartnerNotFoundException("No validation record found with id: " + validationId));
+
+        if (isDeactivated(validation.getPartner())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("PARTNER_INACTIVE", "Cannot reject a request for an inactive partner", "partnerStatus"));
+        }
 
         if (!"PENDING".equals(validation.getWorkflowStatus())) {
             return ResponseEntity.badRequest()
@@ -143,9 +164,11 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
 
         PartnerValidation saved = validationRepository.save(validation);
 
-        // Reset partner status to DRAFT so the saisie user can resubmit
+        // A partner that was already validated stays VALIDATED (only its update request is rejected);
+        // a partner still being enrolled is marked REJECTED so it can be told apart from drafts.
         Partner partner = saved.getPartner();
-        partner.setWorkflowStatus("DRAFT");
+        boolean alreadyValidated = validationRepository.existsByPartnerIdAndWorkflowStatus(partner.getId(), "VALIDATED");
+        partner.setWorkflowStatus(alreadyValidated ? "VALIDATED" : "REJECTED");
         partnerRepository.save(partner);
 
         log.info("User {} rejected partner validation {} - reason: {}", validatorUsername, validationId, reason);
@@ -189,6 +212,18 @@ public class PartnerValidationServiceImpl implements PartnerValidationService {
     }
 
     // ===== HELPERS =====
+
+    /**
+     * New partners stay INACTIVE until their first validation, so they must still go through the
+     * workflow. Only a partner that was already validated and then deactivated is blocked.
+     */
+    private boolean isDeactivated(Partner partner) {
+        if (PartnerValueNormalizer.isActive(partner.getPartnerStatus())) {
+            return false;
+        }
+        return "VALIDATED".equals(partner.getWorkflowStatus())
+                || validationRepository.existsByPartnerIdAndWorkflowStatus(partner.getId(), "VALIDATED");
+    }
 
     private PartnerValidationResponseDto toDto(PartnerValidation pv) {
         return PartnerValidationResponseDto.builder()

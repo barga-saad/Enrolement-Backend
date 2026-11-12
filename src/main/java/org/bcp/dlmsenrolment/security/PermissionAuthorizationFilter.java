@@ -63,6 +63,7 @@ public class PermissionAuthorizationFilter extends OncePerRequestFilter {
     // Whitelist - these endpoints don't need permission checks
     private static final java.util.List<String> WHITELIST = java.util.List.of(
         "/public/",
+        "/v1/partners/validate-account",
         "/swagger-ui/",
         "/v3/api-docs",
         "/health",

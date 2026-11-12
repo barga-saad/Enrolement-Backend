@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
+import org.bcp.dlmsenrolment.enums.AccountingType;
 
 @Entity
 @Data
@@ -40,7 +41,10 @@ public class Partner {
     private String classification; // Local / International
 
     @Column(name = "account_number", nullable = false, length = 24)
-    private String accountNumber; // RIB partenaire (24 chiffres)
+    private String accountNumber; // Numéro de compte (16 positions extraites du RIB)
+
+    @Column(name = "rib", length = 24)
+    private String rib; // RIB partenaire complet (24 chiffres)
 
     @OneToMany(mappedBy = "partner", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Set<PartnerCurrency> currencies = new HashSet<>();
@@ -95,7 +99,7 @@ public class Partner {
     private BigDecimal limitSrbmRtgsTransfer = BigDecimal.ZERO;
 
     @Column(name = "nature_mass_cash_pickup_transfer", nullable = false)
-    private BigDecimal natureMassCashPickupTransfer;
+    private String natureMassCashPickupTransfer;
 
     @Column(name = "valid_days_mass_cash_pickup_transfer", nullable = false)
     private Integer validDaysMassCashPickupTransfer;
@@ -119,10 +123,14 @@ public class Partner {
     private String subscriptionPeriodicity;
 
     @Column(name = "subscription_billing_account")
-    private BigDecimal subscriptionBillingAccount;
+    private String subscriptionBillingAccount;
 
     @Column(name = "payment_nature",nullable = false)
     private String paymentNature; // Post-paiement / Prépaiement
+
+        @Enumerated(EnumType.STRING)
+        @Column(name = "accounting_type", length = 20)
+        private AccountingType accountingType;
 
     // Tariff Conditions
     @Column(name = "fee_mode")
@@ -230,6 +238,51 @@ public class Partner {
 
     @Column(name = "commission_max_wallet")
     private BigDecimal commissionMaxWallet;
+
+    @Column(name = "commission_type_srbm_rtgs", length = 30)
+    private String commissionTypeSrbmRtgs;
+
+    @Column(name = "commission_amount_srbm_rtgs")
+    private BigDecimal commissionAmountSrbmRtgs;
+
+    @Column(name = "commission_rate_srbm_rtgs")
+    private BigDecimal commissionRateSrbmRtgs;
+
+    @Column(name = "commission_min_srbm_rtgs")
+    private BigDecimal commissionMinSrbmRtgs;
+
+    @Column(name = "commission_max_srbm_rtgs")
+    private BigDecimal commissionMaxSrbmRtgs;
+
+    @Column(name = "commission_type_forex_reception", length = 30)
+    private String commissionTypeForexReception;
+
+    @Column(name = "commission_amount_forex_reception")
+    private BigDecimal commissionAmountForexReception;
+
+    @Column(name = "commission_rate_forex_reception")
+    private BigDecimal commissionRateForexReception;
+
+    @Column(name = "commission_min_forex_reception")
+    private BigDecimal commissionMinForexReception;
+
+    @Column(name = "commission_max_forex_reception")
+    private BigDecimal commissionMaxForexReception;
+
+    @Column(name = "commission_type_forex_emission", length = 30)
+    private String commissionTypeForexEmission;
+
+    @Column(name = "commission_amount_forex_emission")
+    private BigDecimal commissionAmountForexEmission;
+
+    @Column(name = "commission_rate_forex_emission")
+    private BigDecimal commissionRateForexEmission;
+
+    @Column(name = "commission_min_forex_emission")
+    private BigDecimal commissionMinForexEmission;
+
+    @Column(name = "commission_max_forex_emission")
+    private BigDecimal commissionMaxForexEmission;
 
     // ===== ENROLLMENT TYPE =====
     // columnDefinition with DEFAULT ensures existing rows are backfilled when Hibernate adds the column via ddl-auto=update

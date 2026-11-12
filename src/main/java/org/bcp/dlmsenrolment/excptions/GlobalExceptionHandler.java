@@ -53,6 +53,12 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "INVALID_DATE_FORMAT", errorMessage, ex.getName());
     }
 
+    @ExceptionHandler(ForbiddenOperationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleForbiddenOperation(ForbiddenOperationException ex) {
+        log.warn("ForbiddenOperationException: {}", ex.getMessage());
+        return buildErrorResponse(HttpStatus.FORBIDDEN, "FORBIDDEN_OPERATION", ex.getMessage(), null);
+    }
+
     @ExceptionHandler(UnsupportedOperationException.class)
     public ResponseEntity<ApiResponse<Object>> handleUnsupportedOp(UnsupportedOperationException ex) {
         log.error("UnsupportedOperationException: {}", ex.getMessage());

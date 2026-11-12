@@ -12,6 +12,7 @@ import org.bcp.dlmsenrolment.entities.RolePermission;
 import org.bcp.dlmsenrolment.repositories.PermissionRepository;
 import org.bcp.dlmsenrolment.repositories.RolePermissionRepository;
 import org.bcp.dlmsenrolment.repositories.RoleRepository;
+import org.bcp.dlmsenrolment.repositories.UserRoleRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +42,7 @@ public class RoleService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final UserRoleRepository userRoleRepository;
 
     /**
      * Create a new role
@@ -49,7 +51,7 @@ public class RoleService {
         log.info("Creating new role: {}", dto.getRoleName());
 
         // Check if role already exists
-        if (roleRepository.existsByRoleNameActive(dto.getRoleName())) {
+        if (roleRepository.existsByRoleName(dto.getRoleName())) {
             throw new RuntimeException("Role with name '" + dto.getRoleName() + "' already exists");
         }
 
@@ -89,7 +91,7 @@ public class RoleService {
      * Get all active roles
      */
     public List<RoleResponseDto> getAllRoles() {
-        return roleRepository.findAllActive()
+        return roleRepository.findAllForAdmin()
             .stream()
             .map(this::mapToResponseDto)
             .collect(Collectors.toList());
@@ -98,21 +100,21 @@ public class RoleService {
     /**
      * Update role details
      */
-    public RoleResponseDto updateRole(Long id, RoleUpdateRequestDto dto) {
+    public RoleResponseDto updateRole(Long id, RoleUpdateRequestDto dto, String updatedByUsername) {
         log.info("Updating role: {}", id);
 
         Role role = roleRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Role not found: " + id));
 
-        if (role.isDeleted()) {
-            throw new RuntimeException("Cannot update deleted role: " + id);
-        }
-
         if (dto.getDescription() != null) {
             role.setDescription(dto.getDescription());
         }
         if (dto.getIsActive() != null) {
-            role.setIsActive(dto.getIsActive());
+            if (dto.getIsActive()) {
+                role.activate();
+            } else {
+                deactivateRole(role, updatedByUsername);
+            }
         }
 
         Role updated = roleRepository.save(role);
@@ -124,19 +126,15 @@ public class RoleService {
     /**
      * Soft-delete role
      */
-    public void deleteRole(Long id) {
-        log.warn("Deleting role: {}", id);
+    public void deleteRole(Long id, String deactivatedByUsername) {
+        log.info("Deactivating role: {}", id);
 
         Role role = roleRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Role not found: " + id));
 
-        if (role.isDeleted()) {
-            throw new RuntimeException("Role already deleted: " + id);
-        }
-
-        role.softDelete();
+        deactivateRole(role, deactivatedByUsername);
         roleRepository.save(role);
-        log.info("Role soft-deleted successfully: {}", id);
+        log.info("Role deactivated successfully: {}", id);
     }
 
     /**
@@ -169,8 +167,8 @@ public class RoleService {
         Permission permission = permissionRepository.findById(permissionId)
             .orElseThrow(() -> new RuntimeException("Permission not found: " + permissionId));
 
-        if (role.isDeleted()) {
-            throw new RuntimeException("Cannot assign permission to deleted role");
+        if (role.isDeleted() || !Boolean.TRUE.equals(role.getIsActive())) {
+            throw new RuntimeException("Cannot assign permission to inactive role");
         }
 
         if (permission.isDeleted()) {
@@ -234,5 +232,11 @@ public class RoleService {
             .deletedAt(role.getDeletedAt())
             .isDeleted(role.isDeleted())
             .build();
+    }
+
+    private void deactivateRole(Role role, String deactivatedByUsername) {
+        role.deactivate();
+        userRoleRepository.findUsersByRoleId(role.getId())
+            .forEach(userRole -> userRole.revoke(deactivatedByUsername));
     }
 }

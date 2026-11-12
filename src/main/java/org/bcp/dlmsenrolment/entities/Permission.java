@@ -14,7 +14,7 @@ import java.util.Set;
  * 
  * Permission Structure:
  * - permission_name: PARTNER_CREATE, PARTNER_UPDATE_OWN, etc.
- * - endpoint: /partners, /transfers, etc.
+ * - endpoint: /partners, /admin/users, etc.
  * - http_method: GET, POST, PUT, DELETE, PATCH
  * - requires_owner_check: TRUE if permission requires owner validation
  *   (e.g., PARTNER_UPDATE_OWN - user can only update if they created it)
@@ -49,7 +49,7 @@ public class Permission {
     private String permissionName;
 
     /**
-     * API endpoint this permission grants access to (e.g., "/partners", "/transfers/{id}")
+    * API endpoint this permission grants access to (e.g., "/partners", "/admin/users/{id}")
      */
     @Column(name = "endpoint", nullable = false, length = 255)
     private String endpoint;
@@ -71,11 +71,9 @@ public class Permission {
      * 
      * TRUE Examples:
      * - PARTNER_UPDATE_OWN: User can only update partners they created
-     * - TRANSFER_VIEW_OWN: User can only view transfers they created
      * 
      * FALSE Examples:
      * - PARTNER_VIEW_ALL: User can view any partner
-     * - TRANSFER_CREATE: User can create transfers
      * 
      * When TRUE, the Authorization Filter will check:
      * - Load the resource (partner, transfer, etc.)
@@ -141,14 +139,22 @@ public class Permission {
      * Soft-delete this permission
      */
     public void softDelete() {
-        this.deletedAt = LocalDateTime.now();
-        this.isActive = false;
+        deactivate();
     }
 
     /**
      * Restore a soft-deleted permission
      */
     public void restore() {
+        activate();
+    }
+
+    public void deactivate() {
+        this.deletedAt = null;
+        this.isActive = false;
+    }
+
+    public void activate() {
         this.deletedAt = null;
         this.isActive = true;
     }

@@ -1,0 +1,56 @@
+services:
+  backend:
+    image: repo-prod.gbp.cpm.net:6000/ms-enrolment-backend:1.0.0-27032026-dev-0
+    container_name: enrollment_backend
+    pull_policy: always
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8094}
+      DB_HOST: ${DB_HOST:-10.3.55.116}
+      DB_PORT: ${DB_PORT:-8099}
+      DB_NAME: ${DB_NAME:-partner_enrollment_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASS: ${DB_PASS:-postgres@187#@}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:-https://10.2.60.146:9443/auth/realms/BCP-INTERNAL}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI:-https://10.2.60.146:9443/auth/realms/BCP-INTERNAL/protocol/openid-connect/certs}
+      KEYCLOAK_TOKEN_URL: ${KEYCLOAK_TOKEN_URL:-https://10.2.60.146:9443/auth/realms/BCP-INTERNAL/protocol/openid-connect/token}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-Enrollement-Frontend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-l8zmFGyic1PzbfH5VwMTAtGbUG1R0nrB}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      APP_SECURITY_LOG_LEVEL: ${APP_SECURITY_LOG_LEVEL:-INFO}
+      SPRING_SECURITY_LOG_LEVEL: ${SPRING_SECURITY_LOG_LEVEL:-WARN}
+      SPRING_AUTH_LOG_LEVEL: ${SPRING_AUTH_LOG_LEVEL:-WARN}
+    ports:
+      - "8094:8094"
+    restart: unless-stopped
+    networks:
+      - enrollment-network
+
+  frontend:
+    image: repo-prod.gbp.cpm.net:6000/ms-enrolment-frontend:0.1.0
+    container_name: enrollment_frontend
+    pull_policy: always
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - enrollment-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: enrollment_nginx
+    pull_policy: always
+    ports:
+      - "8095:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+    restart: unless-stopped
+    networks:
+      - enrollment-network
+
+networks:
+  enrollment-network:
+    driver: bridge

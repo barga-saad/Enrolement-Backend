@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
@@ -22,10 +21,5 @@ public interface PartnerCurrencyRepository extends JpaRepository<PartnerCurrency
     Set<String> findCurrencyCodesByPartner(@Param("partner") Partner partner);
 
     void deleteAllByPartnerAndCurrencyIn(Partner partner, Set<String> currencies);
-
-    @Transactional
-    @Modifying
-        // This annotation is required for any query that modifies data (UPDATE, DELETE, INSERT)
-    void deleteAllByPartner(Partner partner);
 
 }

@@ -23,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PartnerReferenceNumberService {
 
-    /** Counter floor — existing prod data stops at 042999. */
+    /** Counter floor - existing prod data stops at 042999. */
     private static final int STARTING_VALUE = 42999;
 
     private final PartnerRepository partnerRepository;

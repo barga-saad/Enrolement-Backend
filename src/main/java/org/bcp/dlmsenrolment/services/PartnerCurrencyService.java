@@ -10,5 +10,4 @@ public interface PartnerCurrencyService {
     ResponseEntity<ApiResponse<PartnerCurrencyRequestDto>> getPartnerCurrencies(String referenceNumber);
     ResponseEntity<ApiResponse<PartnerCurrencyResponseDto>> createPartnerCurrency(PartnerCurrencyRequestDto partnerCurrency);
     ResponseEntity<ApiResponse<PartnerCurrencyResponseDto>> updatePartnerCurrencies(PartnerCurrencyRequestDto partnerCurrency);
-    ResponseEntity<ApiResponse<PartnerCurrencyResponseDto>> deletePartnerCurrencies(String referenceNumber);
 }

@@ -79,6 +79,10 @@ public class DtoMapper {
 
         if (targetType == String.class) {
             return stringValue;
+        } else if (targetType.isEnum()) {
+            @SuppressWarnings({"rawtypes", "unchecked"})
+            Object enumValue = Enum.valueOf((Class<? extends Enum>) targetType, stringValue.trim().toUpperCase());
+            return enumValue;
         } else if (targetType == Integer.class || targetType == int.class) {
             return Integer.parseInt(stringValue);
         } else if (targetType == Long.class || targetType == long.class) {

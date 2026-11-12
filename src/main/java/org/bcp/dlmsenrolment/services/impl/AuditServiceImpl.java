@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * AuditServiceImpl — Writes immutable audit log entries.
+ * AuditServiceImpl - Writes immutable audit log entries.
  *
  * Uses REQUIRES_NEW propagation so audit logs are persisted even
  * if the calling transaction rolls back (e.g. a failed login attempt).

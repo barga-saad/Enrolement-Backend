@@ -31,6 +31,9 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     @Query("SELECT p FROM Permission p WHERE p.deletedAt IS NULL ORDER BY p.permissionName ASC")
     List<Permission> findAllActive();
 
+    @Query("SELECT p FROM Permission p ORDER BY p.permissionName ASC")
+    List<Permission> findAllForAdmin();
+
     /**
      * Find permissions by endpoint and HTTP method
      * Used during authorization filter to match incoming requests
@@ -51,9 +54,12 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     @Query("""
         SELECT DISTINCT p FROM Permission p
         JOIN p.rolePermissions rp
+        JOIN rp.role r
         WHERE rp.role.id = :roleId
         AND p.deletedAt IS NULL
         AND p.isActive = true
+        AND r.deletedAt IS NULL
+        AND r.isActive = true
         """)
     Set<Permission> findPermissionsByRole(@Param("roleId") Long roleId);
 
@@ -64,9 +70,12 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     @Query("""
         SELECT DISTINCT p FROM Permission p
         JOIN p.rolePermissions rp
+        JOIN rp.role r
         WHERE rp.role.id IN :roleIds
         AND p.deletedAt IS NULL
         AND p.isActive = true
+        AND r.deletedAt IS NULL
+        AND r.isActive = true
         """)
     Set<Permission> findPermissionsByRoles(@Param("roleIds") List<Long> roleIds);
 
@@ -86,8 +95,8 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     /**
      * Check if permission exists by name (active only)
      */
-    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Permission p WHERE p.permissionName = :permissionName AND p.deletedAt IS NULL")
-    boolean existsByPermissionNameActive(@Param("permissionName") String permissionName);
+    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Permission p WHERE p.permissionName = :permissionName")
+    boolean existsByPermissionName(@Param("permissionName") String permissionName);
 
     /**
      * Find deleted permissions (for admin recovery)

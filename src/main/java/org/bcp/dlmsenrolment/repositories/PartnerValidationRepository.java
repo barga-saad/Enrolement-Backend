@@ -16,6 +16,8 @@ public interface PartnerValidationRepository extends JpaRepository<PartnerValida
 
     List<PartnerValidation> findByPartnerIdAndWorkflowStatus(Long partnerId, String workflowStatus);
 
+    boolean existsByPartnerIdAndWorkflowStatus(Long partnerId, String workflowStatus);
+
     @Query("SELECT pv FROM PartnerValidation pv WHERE pv.partner.id = :partnerId ORDER BY pv.createdAt DESC")
     List<PartnerValidation> findByPartnerIdOrderByCreatedAtDesc(@Param("partnerId") Long partnerId);
 

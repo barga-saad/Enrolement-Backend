@@ -63,11 +63,8 @@ Toutes les valeurs ont des défauts pour le développement local.
 | `KEYCLOAK_ISSUER_URI` | `http://localhost:8081/realms/master` | Issuer JWT Keycloak |
 | `KEYCLOAK_JWK_SET_URI` | `http://localhost:8081/realms/master/protocol/openid-connect/certs` | JWKS Keycloak |
 | `KEYCLOAK_TOKEN_URL` | `http://localhost:8081/realms/master/protocol/openid-connect/token` | Endpoint token |
-| `KEYCLOAK_CLIENT_ID` | `Enrollement-Frontend` | Client Keycloak |
-| `KEYCLOAK_CLIENT_SECRET` | *(voir application.properties)* | Secret client |
-| `KEYCLOAK_ADMIN_URL` | `http://localhost:8081/admin/realms/master` | API admin Keycloak |
-| `KEYCLOAK_ADMIN_USERNAME` | `admin` | Admin Keycloak |
-| `KEYCLOAK_ADMIN_PASSWORD` | `admin` | Mot de passe admin Keycloak |
+| `KEYCLOAK_CLIENT_ID` | `Enrollement-Frontend` | Client RH SSO |
+| `KEYCLOAK_CLIENT_SECRET` | *(variable d'environnement obligatoire si client confidentiel)* | Secret client RH SSO |
 | `APP_LOG_LEVEL` | `INFO` | Niveau de log applicatif |
 
 ---

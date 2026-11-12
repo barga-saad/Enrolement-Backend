@@ -5,6 +5,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import org.bcp.dlmsenrolment.enums.AccountingType;
 
 @Getter
 @Setter
@@ -22,6 +23,7 @@ public class PartnerResponseDto {
     private String parentCompanyCountry;
     private String classification;
     private String accountNumber;
+    private String rib;
     private String canal;
 
     // ===== AUDIT =====
@@ -46,7 +48,7 @@ public class PartnerResponseDto {
     private BigDecimal limitMassCashPickupTransfer;
     private BigDecimal limitWalletTransfer;
     private BigDecimal limitSrbmRtgsTransfer;
-    private BigDecimal natureMassCashPickupTransfer;
+    private String natureMassCashPickupTransfer;
     private Integer validDaysMassCashPickupTransfer;
 
     // ===== CURRENCY & EXCHANGE =====
@@ -57,8 +59,9 @@ public class PartnerResponseDto {
     // ===== SUBSCRIPTION =====
     private BigDecimal subscriptionFee;
     private String subscriptionPeriodicity;
-    private BigDecimal subscriptionBillingAccount;
+    private String subscriptionBillingAccount;
     private String paymentNature;
+    private AccountingType accountingType;
 
     // ===== TARIFF CONDITIONS =====
     private String feeMode;
@@ -143,5 +146,23 @@ public class PartnerResponseDto {
     private BigDecimal commissionRateWallet;
     private BigDecimal commissionMinWallet;
     private BigDecimal commissionMaxWallet;
+
+    private String commissionTypeSrbmRtgs;
+    private BigDecimal commissionAmountSrbmRtgs;
+    private BigDecimal commissionRateSrbmRtgs;
+    private BigDecimal commissionMinSrbmRtgs;
+    private BigDecimal commissionMaxSrbmRtgs;
+
+    private String commissionTypeForexReception;
+    private BigDecimal commissionAmountForexReception;
+    private BigDecimal commissionRateForexReception;
+    private BigDecimal commissionMinForexReception;
+    private BigDecimal commissionMaxForexReception;
+
+    private String commissionTypeForexEmission;
+    private BigDecimal commissionAmountForexEmission;
+    private BigDecimal commissionRateForexEmission;
+    private BigDecimal commissionMinForexEmission;
+    private BigDecimal commissionMaxForexEmission;
 }
 

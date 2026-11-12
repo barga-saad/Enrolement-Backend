@@ -23,13 +23,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * AuthController — Handles Keycloak-based login, auto user sync, and password change.
+    * AuthController - Handles Keycloak-based login and local user synchronization.
  *
  * FLOW:
  *  1. User logs in → Keycloak validates credentials → returns JWT
  *  2. Backend decodes JWT → extracts email/firstName/lastName/required_actions
  *  3. If user not in local DB → auto-create (no roles yet)
- *  4. If JWT has required_actions=[UPDATE_PASSWORD] → return requiresPasswordChange=true
+    *  4. Admin assigns roles via /admin/users/{id}/roles
+    *  5. On next login user gets proper roleNames and correct access
  *  5. Admin assigns roles via /admin/users/{id}/roles
  *  6. On next login user gets proper roleNames and correct access
  */
@@ -45,7 +46,7 @@ public class AuthController {
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
 
-    @Value("${keycloak.token-url:http://localhost:8081/realms/master/protocol/openid-connect/token}")
+    @Value("${keycloak.token-url:https://10.2.60.146:9443/auth/realms/BCP-INTERNAL/protocol/openid-connect/token}")
     private String keycloakTokenUrl;
 
     @Value("${keycloak.client-id:Enrollement-Frontend}")
@@ -53,15 +54,6 @@ public class AuthController {
 
     @Value("${keycloak.client-secret:lzlnxrOnduPtdfiXP1TdQUDntJjqDIMs}")
     private String keycloakClientSecret;
-
-    @Value("${keycloak.admin-url:http://localhost:8081/admin/realms/master}")
-    private String keycloakAdminUrl;
-
-    @Value("${keycloak.admin-username:admin}")
-    private String keycloakAdminUsername;
-
-    @Value("${keycloak.admin-password:admin}")
-    private String keycloakAdminPassword;
 
     // ─────────────────────────── LOGIN ────────────────────────────────────────
 
@@ -102,18 +94,18 @@ public class AuthController {
             String refreshToken = (String) tokenData.get("refresh_token");
             Long   expiresIn    = ((Number) tokenData.get("expires_in")).longValue();
 
-            // 2. Decode JWT to extract user identity and required actions
+            // 2. Decode JWT to extract user identity
             Map<String, Object> claims = decodeJwt(accessToken);
             String email     = (String) claims.getOrDefault("email", "");
             String firstName = (String) claims.getOrDefault("given_name", loginRequest.getUsername());
             String lastName  = (String) claims.getOrDefault("family_name", "");
 
-            @SuppressWarnings("unchecked")
-            List<String> requiredActions = (List<String>) claims.getOrDefault("required_actions", List.of());
-            boolean requiresPasswordChange = requiredActions.contains("UPDATE_PASSWORD");
-
-            // 3. Auto-sync: create user in local DB if not yet registered
-            User user = userRepository.findByUsername(loginRequest.getUsername()).orElse(null);
+            // 3. Auto-sync only genuinely new users; never recreate or authenticate inactive users.
+            User user = userRepository.findByUsernameIncludingDeleted(loginRequest.getUsername()).orElse(null);
+            if (user != null && (user.isDeleted() || !Boolean.TRUE.equals(user.getIsActive()))) {
+                return ResponseEntity.status(403).body(
+                    ApiResponse.error("ACCOUNT_DISABLED", "This account is disabled", null));
+            }
             if (user == null) {
                 user = new User();
                 user.setUsername(loginRequest.getUsername());
@@ -153,11 +145,9 @@ public class AuthController {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .roleNames(roleNames)
-                .requiresPasswordChange(requiresPasswordChange)
                 .build();
 
-            log.info("Login successful - user: {}, roles: {}, requiresPasswordChange: {}",
-                user.getUsername(), roleNames, requiresPasswordChange);
+            log.info("Login successful - user: {}, roles: {}", user.getUsername(), roleNames);
 
             auditService.log(user.getUsername(), "LOGIN_SUCCESS", "USER", user.getId(),
                     "User " + user.getUsername() + " logged in successfully");
@@ -171,11 +161,6 @@ public class AuthController {
             return ResponseEntity.status(401).body(
                 ApiResponse.error("INVALID_CREDENTIALS", "Invalid username or password", null));
         } catch (org.springframework.web.client.HttpClientErrorException.BadRequest e) {
-            String body = e.getResponseBodyAsString();
-            if (body.contains("Account is not fully set up")) {
-                log.info("User {} has temporary password — requires password change", loginRequest.getUsername());
-                return handleTemporaryPasswordUser(loginRequest);
-            }
             log.warn("Bad request during login for user: {}", loginRequest.getUsername());
             return ResponseEntity.status(400).body(
                 ApiResponse.error("BAD_REQUEST", "Login failed", null));
@@ -213,6 +198,10 @@ public class AuthController {
                 return ResponseEntity.status(404).body(
                     ApiResponse.error("NOT_FOUND", "User not found in database", null));
             }
+            if (!Boolean.TRUE.equals(user.getIsActive())) {
+                return ResponseEntity.status(403).body(
+                    ApiResponse.error("ACCOUNT_DISABLED", "This account is disabled", null));
+            }
 
             List<String> roleNames = userRoleRepository.findActiveRolesByUsername(username)
                 .stream()
@@ -226,64 +215,15 @@ public class AuthController {
                 .firstName(user.getFirstName())
                 .lastName(user.getLastName())
                 .roleNames(roleNames)
-                .requiresPasswordChange(false)
                 .build();
 
-            log.debug("GET /auth/me — user: {}, roles: {}", username, roleNames);
+            log.debug("GET /auth/me - user: {}, roles: {}", username, roleNames);
             return ResponseEntity.ok(ApiResponse.success(me));
 
         } catch (Exception e) {
             log.warn("GET /auth/me failed: {}", e.getMessage());
             return ResponseEntity.status(401).body(
                 ApiResponse.error("UNAUTHORIZED", "Invalid token", null));
-        }
-    }
-
-    // ──────────────────────── CHANGE PASSWORD ─────────────────────────────────
-
-    /**
-     * POST /auth/change-password
-     * Allows a user to change their Keycloak password (e.g. after first login with temp password).
-     * Uses the Keycloak Admin REST API to set the new password and clear required actions.
-     *
-     * Body: { "username": "sarah", "newPassword": "NewPass123!" }
-     */
-    @PostMapping("/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody Map<String, String> request) {
-        String username    = request.get("username");
-        String newPassword = request.get("newPassword");
-
-        if (username == null || newPassword == null || newPassword.length() < 6) {
-            return ResponseEntity.badRequest().body(
-                ApiResponse.error("VALIDATION_ERROR", "Username and newPassword (min 6 chars) are required", null));
-        }
-
-        try {
-            // 1. Get Keycloak admin token
-            String adminToken = getAdminToken();
-
-            // 2. Find the Keycloak user ID by username
-            String keycloakUserId = findKeycloakUserId(username, adminToken);
-            if (keycloakUserId == null) {
-                return ResponseEntity.status(404).body(
-                    ApiResponse.error("USER_NOT_FOUND", "User not found in Keycloak: " + username, null));
-            }
-
-            // 3. Reset password in Keycloak (temporary = false → permanent)
-            resetKeycloakPassword(keycloakUserId, newPassword, adminToken);
-
-            // 4. Clear required actions (removes UPDATE_PASSWORD)
-            clearRequiredActions(keycloakUserId, adminToken);
-
-            log.info("Password changed successfully for user: {}", username);
-            auditService.log(username, "PASSWORD_CHANGE", "USER", null,
-                    "Password changed successfully for user: " + username);
-            return ResponseEntity.ok(ApiResponse.success("Password changed successfully", null));
-
-        } catch (Exception e) {
-            log.error("Password change failed for user: {}", username, e);
-            return ResponseEntity.status(500).body(
-                ApiResponse.error("PASSWORD_CHANGE_FAILED", "Failed to change password: " + e.getMessage(), null));
         }
     }
 
@@ -324,6 +264,14 @@ public class AuthController {
             String newRefreshToken = (String) tokenData.getOrDefault("refresh_token", refreshToken);
             Long   expiresIn       = ((Number) tokenData.get("expires_in")).longValue();
 
+            Map<String, Object> refreshedClaims = decodeJwt(newAccessToken);
+            String username = (String) refreshedClaims.getOrDefault("preferred_username", "");
+            User user = userRepository.findByUsername(username).orElse(null);
+            if (user == null || !Boolean.TRUE.equals(user.getIsActive())) {
+                return ResponseEntity.status(401).body(
+                    ApiResponse.error("ACCOUNT_DISABLED", "This account is disabled", null));
+            }
+
             Map<String, Object> result = new HashMap<>();
             result.put("token", newAccessToken);
             result.put("refreshToken", newRefreshToken);
@@ -340,7 +288,7 @@ public class AuthController {
         } catch (Exception e) {
             log.warn("Token refresh failed: {}", e.getMessage());
             return ResponseEntity.status(401).body(
-                ApiResponse.error("REFRESH_FAILED", "Token refresh failed — please login again", null));
+                ApiResponse.error("REFRESH_FAILED", "Token refresh failed - please login again", null));
         }
     }
 
@@ -361,77 +309,6 @@ public class AuthController {
 
     // ──────────────────────── HELPERS ─────────────────────────────────────────
 
-    /**
-     * Handle login for users with temporary passwords.
-     * Keycloak won't issue a token, so we use the Admin API to get user info,
-     * auto-sync to local DB, and return requiresPasswordChange=true.
-     */
-    private ResponseEntity<?> handleTemporaryPasswordUser(LoginRequest loginRequest) {
-        try {
-            String adminToken = getAdminToken();
-            String keycloakUserId = findKeycloakUserId(loginRequest.getUsername(), adminToken);
-            if (keycloakUserId == null) {
-                return ResponseEntity.status(404).body(
-                    ApiResponse.error("USER_NOT_FOUND", "User not found in Keycloak", null));
-            }
-
-            // Get user details from Keycloak Admin API
-            @SuppressWarnings("unchecked")
-            Map<String, Object> kcUser = getKeycloakUser(keycloakUserId, adminToken);
-            String email     = (String) kcUser.getOrDefault("email", "");
-            String firstName = (String) kcUser.getOrDefault("firstName", loginRequest.getUsername());
-            String lastName  = (String) kcUser.getOrDefault("lastName", "");
-
-            // Auto-sync to local DB
-            User user = userRepository.findByUsername(loginRequest.getUsername()).orElse(null);
-            if (user == null) {
-                user = new User();
-                user.setUsername(loginRequest.getUsername());
-                user.setEmail(email != null && !email.isBlank() ? email : loginRequest.getUsername() + "@enrollment.local");
-                user.setFirstName(firstName != null ? firstName : "");
-                user.setLastName(lastName != null ? lastName : "");
-                user.setIsActive(true);
-                user.setCreatedAt(LocalDateTime.now());
-                user.setUpdatedAt(LocalDateTime.now());
-                userRepository.save(user);
-                log.info("Auto-synced temp-password user from Keycloak: {}", loginRequest.getUsername());
-            }
-
-            List<String> roleNames = userRoleRepository.findActiveRolesByUsername(loginRequest.getUsername())
-                .stream()
-                .map(ur -> ur.getRole().getRoleName())
-                .collect(Collectors.toList());
-
-            LoginResponse loginResponse = LoginResponse.builder()
-                .token(null)
-                .requiresPasswordChange(true)
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .roleNames(roleNames)
-                .build();
-
-            return ResponseEntity.ok(ApiResponse.success("Password change required", loginResponse));
-        } catch (Exception ex) {
-            log.error("Error handling temp password user: {}", loginRequest.getUsername(), ex);
-            return ResponseEntity.status(500).body(
-                ApiResponse.error("INTERNAL_ERROR", "Failed to process temporary password user", null));
-        }
-    }
-
-    /** Get user details from Keycloak Admin API by user ID. */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getKeycloakUser(String userId, String adminToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(adminToken);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        String url = keycloakAdminUrl + "/users/" + userId;
-        var response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
-        return response.getBody() != null ? response.getBody() : new HashMap<>();
-    }
-
     /** Decode a JWT token payload (middle section) into a Map. */
     @SuppressWarnings("unchecked")
     private Map<String, Object> decodeJwt(String token) {
@@ -445,77 +322,4 @@ public class AuthController {
         }
     }
 
-    /** Get a Keycloak admin access token using the admin credentials. */
-    private String getAdminToken() {
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("grant_type", "password");
-        params.add("client_id", "admin-cli");
-        params.add("username", keycloakAdminUsername);
-        params.add("password", keycloakAdminPassword);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-        // Admin token URL uses the master realm
-        String adminTokenUrl = keycloakAdminUrl.replace("/admin/realms/master", "")
-            + "/realms/master/protocol/openid-connect/token";
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> body = restTemplate.postForObject(
-            adminTokenUrl,
-            new HttpEntity<>(params, headers),
-            Map.class
-        );
-
-        if (body == null || body.get("access_token") == null) {
-            throw new RuntimeException("Could not obtain Keycloak admin token");
-        }
-        return (String) body.get("access_token");
-    }
-
-    /** Find a user's Keycloak internal ID by username using the Admin API. */
-    private String findKeycloakUserId(String username, String adminToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(adminToken);
-        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-
-        String url = keycloakAdminUrl + "/users?username=" + username + "&exact=true";
-        var response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), List.class);
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> users = response.getBody();
-        if (users == null || users.isEmpty()) return null;
-
-        return (String) users.get(0).get("id");
-    }
-
-    /** Set a new permanent password in Keycloak for the given user ID. */
-    private void resetKeycloakPassword(String userId, String newPassword, String adminToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(adminToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("type", "password");
-        body.put("value", newPassword);
-        body.put("temporary", false);
-
-        String url = keycloakAdminUrl + "/users/" + userId + "/reset-password";
-        restTemplate.exchange(url, HttpMethod.PUT, new HttpEntity<>(body, headers), Void.class);
-        log.debug("Password reset in Keycloak for user ID: {}", userId);
-    }
-
-    /** Clear all required actions (e.g. UPDATE_PASSWORD) for the given user. */
-    private void clearRequiredActions(String userId, String adminToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(adminToken);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("requiredActions", List.of());
-
-        String url = keycloakAdminUrl + "/users/" + userId;
-        restTemplate.exchange(url, HttpMethod.PUT, new HttpEntity<>(body, headers), Void.class);
-        log.debug("Cleared required actions for user ID: {}", userId);
-    }
 }

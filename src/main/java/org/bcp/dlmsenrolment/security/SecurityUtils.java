@@ -5,7 +5,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 /**
- * SecurityUtils — centralizes principal name resolution.
+ * SecurityUtils - centralizes principal name resolution.
  *
  * Problem: Keycloak JWTs have two user-identifying claims:
  *   - "sub"                → UUID like "2612bded-1411-4d79-96da-7e9c1dc256c4"  (default principal)
@@ -34,7 +34,7 @@ public final class SecurityUtils {
     public static String getUsername(Authentication auth) {
         if (auth == null) return "system";
 
-        // Spring OAuth2 Resource Server sets a JwtAuthenticationToken — read claim directly
+        // Spring OAuth2 Resource Server sets a JwtAuthenticationToken - read claim directly
         if (auth instanceof JwtAuthenticationToken jwtAuth) {
             String preferred = jwtAuth.getToken().getClaimAsString("preferred_username");
             if (preferred != null && !preferred.isBlank()) {

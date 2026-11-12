@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import org.bcp.dlmsenrolment.enums.AccountingType;
 
 @Getter
 @Setter
@@ -30,7 +31,7 @@ public class PartnerRequestDto {
     private boolean allowedWalletTransfer;
     private boolean allowedSrbmRtgsTransfer;
 
-    // Transfer limits — default 0 so NOT NULL constraint is satisfied
+    // Transfer limits - default 0 so NOT NULL constraint is satisfied
     private BigDecimal limitInternalInstantTransfer = BigDecimal.ZERO;
     private BigDecimal limitExternalInstantTransfer = BigDecimal.ZERO;
     private BigDecimal limitStandardTransfer = BigDecimal.ZERO;
@@ -39,7 +40,7 @@ public class PartnerRequestDto {
     private BigDecimal limitWalletTransfer = BigDecimal.ZERO;
     private BigDecimal limitSrbmRtgsTransfer = BigDecimal.ZERO;
 
-    private BigDecimal natureMassCashPickupTransfer = BigDecimal.ZERO;
+    private String natureMassCashPickupTransfer;
     private Integer validDaysMassCashPickupTransfer = 0;
 
     // Currency
@@ -52,9 +53,10 @@ public class PartnerRequestDto {
     // Subscription
     private BigDecimal subscriptionFee = BigDecimal.ZERO;
     private String subscriptionPeriodicity;
-    private BigDecimal subscriptionBillingAccount;
+    private String subscriptionBillingAccount;
 
-    private String paymentNature = "Post-paiement";
+    private String paymentNature = "POST_PAYMENT";
+    private AccountingType accountingType;
 
     // Tariff conditions
     private String feeMode;
@@ -65,50 +67,68 @@ public class PartnerRequestDto {
     // Commission currency
     private String commissionCurrency = "MAD";
 
-    // Commissions — Instant Internal
-    private String commissionTypeInstantInternal = "Flat";
+    // Commissions - Instant Internal
+    private String commissionTypeInstantInternal = "FLAT";
     private BigDecimal commissionAmountInstantInternal = BigDecimal.ZERO;
     private BigDecimal commissionRateInstantInternal = BigDecimal.ZERO;
     private BigDecimal commissionMinInstantInternal;
     private BigDecimal commissionMaxInstantInternal;
 
-    // Commissions — Instant External
-    private String commissionTypeInstantExternal = "Flat";
+    // Commissions - Instant External
+    private String commissionTypeInstantExternal = "FLAT";
     private BigDecimal commissionAmountInstantExternal = BigDecimal.ZERO;
     private BigDecimal commissionRateInstantExternal = BigDecimal.ZERO;
     private BigDecimal commissionMinInstantExternal;
     private BigDecimal commissionMaxInstantExternal;
 
-    // Commissions — Standard External
-    private String commissionTypeStandardExternal = "Flat";
+    // Commissions - Standard External
+    private String commissionTypeStandardExternal = "FLAT";
     private BigDecimal commissionAmountStandardExternal = BigDecimal.ZERO;
     private BigDecimal commissionRateStandardExternal = BigDecimal.ZERO;
     private BigDecimal commissionMinStandardExternal;
     private BigDecimal commissionMaxStandardExternal;
 
-    // Commissions — Mass Cash Pickup
-    private String commissionTypeMassCashPickup = "Flat";
+    // Commissions - Mass Cash Pickup
+    private String commissionTypeMassCashPickup = "FLAT";
     private BigDecimal commissionAmountMassCashPickup = BigDecimal.ZERO;
     private BigDecimal commissionRateMassCashPickup = BigDecimal.ZERO;
     private BigDecimal commissionMinMassCashPickup;
     private BigDecimal commissionMaxMassCashPickup;
 
-    // Commissions — Cash Pickup
-    private String commissionTypeCashPickup = "Flat";
+    // Commissions - Cash Pickup
+    private String commissionTypeCashPickup = "FLAT";
     private BigDecimal commissionAmountCashPickup = BigDecimal.ZERO;
     private BigDecimal commissionRateCashPickup = BigDecimal.ZERO;
     private BigDecimal commissionMinCashPickup;
     private BigDecimal commissionMaxCashPickup;
 
-    // Commissions — Wallet
-    private String commissionTypeWallet = "Flat";
+    // Commissions - Wallet
+    private String commissionTypeWallet = "FLAT";
     private BigDecimal commissionAmountWallet = BigDecimal.ZERO;
     private BigDecimal commissionRateWallet = BigDecimal.ZERO;
     private BigDecimal commissionMinWallet;
     private BigDecimal commissionMaxWallet;
 
+    private String commissionTypeSrbmRtgs = "FLAT";
+    private BigDecimal commissionAmountSrbmRtgs = BigDecimal.ZERO;
+    private BigDecimal commissionRateSrbmRtgs = BigDecimal.ZERO;
+    private BigDecimal commissionMinSrbmRtgs;
+    private BigDecimal commissionMaxSrbmRtgs;
+
+    private String commissionTypeForexReception = "PERCENTAGE";
+    private BigDecimal commissionAmountForexReception = BigDecimal.ZERO;
+    private BigDecimal commissionRateForexReception = BigDecimal.ZERO;
+    private BigDecimal commissionMinForexReception;
+    private BigDecimal commissionMaxForexReception;
+
+    private String commissionTypeForexEmission = "PERCENTAGE";
+    private BigDecimal commissionAmountForexEmission = BigDecimal.ZERO;
+    private BigDecimal commissionRateForexEmission = BigDecimal.ZERO;
+    private BigDecimal commissionMinForexEmission;
+    private BigDecimal commissionMaxForexEmission;
+
     // ===== ENROLLMENT TYPE =====
-    // "PARTNER" (default) or "CLIENT" — controls which form sections are active
+    // "PARTNER" (default) or "CLIENT" - controls which form sections are active
     private String enrollmentType = "PARTNER";
 
     // ===== FOREX - RECEPTION (Partner only) =====

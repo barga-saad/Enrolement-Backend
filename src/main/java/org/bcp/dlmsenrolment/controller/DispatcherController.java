@@ -4,19 +4,19 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.services.DispatcherService;
-import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.HashMap;
+import java.util.Map;
 
 /**
  * DispatcherController - Generic REST endpoint for dynamic CRUD operations.
  * 
- * Handles generic create/read/update/delete operations for multiple tables.
+ * Handles generic create/read/update operations for supported resources.
  * All endpoints are secured with RBAC authentication.
  * 
  * SECURITY:
@@ -59,21 +59,17 @@ public class DispatcherController {
      * Requires: Appropriate READ permission (e.g., PARTNER_LIST_ALL or PARTNER_VIEW_OWN)
      * Filtering: If user has VIEW_OWN permission, only their records returned
      * 
-     * @param tableName - Table to query (partners, transfers)
+    * @param tableName - Table to query (partners, partner currencies)
      * @param partnerReferenceNumber - Filter by partner reference (optional)
-     * @param startDate - Filter by date range start (optional)
-     * @param endDate - Filter by date range end (optional)
      */
     @GetMapping("/read/{tableName}")
     @Operation(summary = "Read records with optional filters")
     public ResponseEntity<?> read(
             @PathVariable String tableName,
             @RequestParam(required = false) String partnerReferenceNumber,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             Authentication authentication) {
         log.info("User {} requested read from {}", authentication.getName(), tableName);
-        return dispatcherService.read(tableName, partnerReferenceNumber, startDate, endDate);
+        return dispatcherService.read(tableName, partnerReferenceNumber);
     }
 
     /**
@@ -96,24 +92,11 @@ public class DispatcherController {
         return dispatcherService.update(tableName, body);
     }
 
-    /**
-     * DELETE /v1/delete/{tableName} - Delete record (Soft-Delete)
-     * 
-     * Requires: Appropriate DELETE permission
-     * Soft-Delete: Record marked as deleted, not physically removed
-     * Audit: User who deleted and timestamp recorded
-     * 
-     * @param tableName - Table to delete from
-     * @param partnerReferenceNumber - Identifier of record to delete
-     */
     @DeleteMapping("/delete/{tableName}")
-    @Operation(summary = "Delete record (soft-delete)")
-    public ResponseEntity<?> delete(
-            @PathVariable String tableName,
-            @RequestParam String partnerReferenceNumber,
-            Authentication authentication) {
-        log.info("User {} received request to delete from {} where ref={}", 
-            authentication.getName(), tableName, partnerReferenceNumber);
-        return dispatcherService.delete(tableName, partnerReferenceNumber);
+    @Operation(summary = "Deprecated generic delete endpoint")
+    public ResponseEntity<?> delete() {
+        return ResponseEntity.status(HttpStatus.GONE).body(Map.of(
+                "error", "ENDPOINT_DEPRECATED",
+                "message", "Generic deletion is disabled. Use a resource-specific action."));
     }
 }

@@ -1,0 +1,34 @@
+#image: docker:27-cli
+
+#services:
+#  - name: docker:27-dind
+#    command: ["--tls=false"]
+
+variables:
+  IMAGE_NAME: "ms-enrolment-backend"
+  TAG: ""
+  NO_PROXY: "repo-prod.gbp.cpm.net"
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+
+
+stages:
+  - build
+
+before_script:
+  - echo "Logging in to Nexus..."
+  - echo "$NEXUS_PASSWORD" | docker login "$NEXUS_REGISTRY" --username "$NEXUS_USER" --password-stdin
+  - export VERSION=$(grep "^version[[:space:]]*=" build.gradle | cut -d'=' -f2 | tr -d "' \"")
+  - export VERSION_TAG="${VERSION:-${CI_COMMIT_SHORT_SHA}}"
+  - echo "Building version $VERSION_TAG"
+
+build:
+  stage: build
+  script:
+    - echo "Building and pushing backend image..."
+    - gradle clean --no-daemon
+    - gradle build -x test --no-daemon #--console=plain --info
+    - docker build --add-host=repo-prod.gbp.cpm.net:10.250.9.203 -t "$NEXUS_REGISTRY/$IMAGE_NAME:$VERSION_TAG" .
+    - docker push "$NEXUS_REGISTRY/$IMAGE_NAME:$VERSION_TAG"
+  rules:
+    - if: '$CI_COMMIT_BRANCH'

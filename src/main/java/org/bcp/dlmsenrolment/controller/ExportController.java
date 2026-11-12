@@ -30,7 +30,7 @@ public class ExportController {
     private final AuditService auditService;
 
     @GetMapping("/partners")
-    @Operation(summary = "Export validated partners as CSV — all fields")
+    @Operation(summary = "Export validated partners as CSV - all fields")
     public ResponseEntity<byte[]> exportPartnersCsv(Authentication authentication) {
         String actor = SecurityUtils.getUsername(authentication);
         log.info("User {} exporting VALIDATED partners to CSV", actor);
@@ -40,8 +40,8 @@ public class ExportController {
         StringWriter sw = new StringWriter();
 
         // ── HEADER ─────────────────────────────────────────────────────────────
-        sw.append("ID,Nom,Référence,Type Partenaire,Statut Partenaire,Pays Siège,Pays Société Mère,Classification,N° Compte,Canal,")
-          .append("Enrollment Type,Workflow Status,Créé par,Créé le,Mis à jour le,")
+        sw.append("ID,Nom,Référence,Type Partenaire,Statut Partenaire,Pays Siège,Pays Société Mère,Classification,N° Compte,RIB,Canal,")
+          .append("Enrollment Type,Workflow Status,Créé par,Créé le,Mis à jour le,Type Comptabilité,")
           // Transferts autorisés
           .append("Virt Instantané Intra BP,Virt Instantané Confrère,Virt Standard,Cash Pickup,Mass Cash Pickup,Wallet,")
           // Plafonds
@@ -67,6 +67,9 @@ public class ExportController {
           .append("Type Comm Cash Pickup,Montant Comm Cash Pickup,Taux Comm Cash Pickup,Min Comm Cash Pickup,Max Comm Cash Pickup,")
           // Commission Wallet
           .append("Type Comm Wallet,Montant Comm Wallet,Taux Comm Wallet,Min Comm Wallet,Max Comm Wallet,")
+          .append("Type Comm SRBM,Montant Comm SRBM,Taux Comm SRBM,Min Comm SRBM,Max Comm SRBM,")
+          .append("Type Comm FX Réception,Montant Comm FX Réception,Taux Comm FX Réception,Min Comm FX Réception,Max Comm FX Réception,")
+          .append("Type Comm FX Émission,Montant Comm FX Émission,Taux Comm FX Émission,Min Comm FX Émission,Max Comm FX Émission,")
           // Forex Réception
           .append("Autoriser Réception,Devises Réception,Plafond Réception,")
           // Forex Émission
@@ -89,12 +92,14 @@ public class ExportController {
               .append(csv(p.getParentCompanyCountry())).append(',')
               .append(csv(p.getClassification())).append(',')
               .append(csv(p.getAccountNumber())).append(',')
+              .append(csv(p.getRib())).append(',')
               .append(csv(p.getCanal())).append(',')
               .append(csv(p.getEnrollmentType())).append(',')
               .append(csv(p.getWorkflowStatus())).append(',')
               .append(csv(p.getCreatedBy())).append(',')
               .append(str(p.getCreatedAt())).append(',')
               .append(str(p.getUpdatedAt())).append(',')
+              .append(csv(p.getAccountingType() == null ? null : p.getAccountingType().name())).append(',')
               // Transferts autorisés
               .append(bool(p.isAllowedInternalInstantTransfer())).append(',')
               .append(bool(p.isAllowedExternalInstantTransfer())).append(',')
@@ -157,6 +162,21 @@ public class ExportController {
               .append(str(p.getCommissionRateWallet())).append(',')
               .append(str(p.getCommissionMinWallet())).append(',')
               .append(str(p.getCommissionMaxWallet())).append(',')
+              .append(csv(p.getCommissionTypeSrbmRtgs())).append(',')
+              .append(str(p.getCommissionAmountSrbmRtgs())).append(',')
+              .append(str(p.getCommissionRateSrbmRtgs())).append(',')
+              .append(str(p.getCommissionMinSrbmRtgs())).append(',')
+              .append(str(p.getCommissionMaxSrbmRtgs())).append(',')
+              .append(csv(p.getCommissionTypeForexReception())).append(',')
+              .append(str(p.getCommissionAmountForexReception())).append(',')
+              .append(str(p.getCommissionRateForexReception())).append(',')
+              .append(str(p.getCommissionMinForexReception())).append(',')
+              .append(str(p.getCommissionMaxForexReception())).append(',')
+              .append(csv(p.getCommissionTypeForexEmission())).append(',')
+              .append(str(p.getCommissionAmountForexEmission())).append(',')
+              .append(str(p.getCommissionRateForexEmission())).append(',')
+              .append(str(p.getCommissionMinForexEmission())).append(',')
+              .append(str(p.getCommissionMaxForexEmission())).append(',')
               // Forex Réception
               .append(bool(p.getAutoriserReception())).append(',')
               .append(csv(p.getDevisesReception())).append(',')

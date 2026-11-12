@@ -30,11 +30,14 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     @Query("SELECT r FROM Role r WHERE r.deletedAt IS NULL ORDER BY r.roleName ASC")
     List<Role> findAllActive();
 
+    @Query("SELECT r FROM Role r ORDER BY r.roleName ASC")
+    List<Role> findAllForAdmin();
+
     /**
      * Check if role exists by name (active only)
      */
-    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Role r WHERE r.roleName = :roleName AND r.deletedAt IS NULL")
-    boolean existsByRoleNameActive(@Param("roleName") String roleName);
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Role r WHERE r.roleName = :roleName")
+    boolean existsByRoleName(@Param("roleName") String roleName);
 
     /**
      * Find deleted roles (for admin recovery)

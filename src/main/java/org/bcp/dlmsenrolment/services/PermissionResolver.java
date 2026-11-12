@@ -68,6 +68,10 @@ public class PermissionResolver {
         }
 
         User user = userOpt.get();
+        if (user.isDeleted() || !Boolean.TRUE.equals(user.getIsActive())) {
+            log.warn("Inactive user has no permissions: {}", username);
+            return Set.of();
+        }
         return getUserPermissions(user.getId());
     }
 

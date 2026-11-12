@@ -8,10 +8,12 @@ import org.bcp.dlmsenrolment.dtos.request.AssignPermissionToRoleRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.RoleCreateRequestDto;
 import org.bcp.dlmsenrolment.dtos.request.RoleUpdateRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.RoleResponseDto;
+import org.bcp.dlmsenrolment.security.SecurityUtils;
 import org.bcp.dlmsenrolment.services.AuditService;
 import org.bcp.dlmsenrolment.services.RoleService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -25,7 +27,7 @@ import java.util.List;
  * GET    /admin/roles                         - List all roles
  * GET    /admin/roles/{id}                    - Get role by ID
  * PUT    /admin/roles/{id}                    - Update role
- * DELETE /admin/roles/{id}                    - Soft-delete role
+ * DELETE /admin/roles/{id}                    - Deactivate role (legacy route)
  * POST   /admin/roles/{roleId}/permissions    - Assign permission to role
  * DELETE /admin/roles/{roleId}/permissions/{permissionId} - Remove permission from role
  * GET    /admin/roles/{roleId}/permissions    - Get role's permissions
@@ -83,24 +85,27 @@ public class AdminRoleController {
     @Operation(summary = "Update role")
     public ResponseEntity<RoleResponseDto> updateRole(
             @PathVariable Long id,
-            @Valid @RequestBody RoleUpdateRequestDto request) {
+            @Valid @RequestBody RoleUpdateRequestDto request,
+            Authentication authentication) {
         log.info("Updating role: {}", id);
-        RoleResponseDto response = roleService.updateRole(id, request);
-        auditService.log(null, "UPDATE_ROLE", "ROLE", id,
+        String actor = SecurityUtils.getUsername(authentication);
+        RoleResponseDto response = roleService.updateRole(id, request, actor);
+        auditService.log(actor, "UPDATE_ROLE", "ROLE", id,
                 "Role " + id + " updated");
         return ResponseEntity.ok(response);
     }
 
     /**
-     * DELETE /admin/roles/{id} - Soft-delete role
+    * DELETE /admin/roles/{id} - Deactivate role (kept for API compatibility)
      */
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete role")
-    public ResponseEntity<Void> deleteRole(@PathVariable Long id) {
-        log.warn("Deleting role: {}", id);
-        roleService.deleteRole(id);
-        auditService.log(null, "DELETE_ROLE", "ROLE", id,
-                "Role " + id + " deleted");
+    @Operation(summary = "Deactivate role")
+    public ResponseEntity<Void> deleteRole(@PathVariable Long id, Authentication authentication) {
+        log.info("Deactivating role: {}", id);
+        String actor = SecurityUtils.getUsername(authentication);
+        roleService.deleteRole(id, actor);
+        auditService.log(actor, "DEACTIVATE_ROLE", "ROLE", id,
+                "Role " + id + " deactivated");
         return ResponseEntity.noContent().build();
     }
 

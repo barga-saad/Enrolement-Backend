@@ -1,5 +1,6 @@
 package org.bcp.dlmsenrolment.services.impl;
 
+import org.bcp.dlmsenrolment.utils.PartnerValueNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.bcp.dlmsenrolment.dtos.request.PartnerCurrencyRequestDto;
 import org.bcp.dlmsenrolment.dtos.respons.PartnerCurrencyResponseDto;
@@ -11,10 +12,10 @@ import org.bcp.dlmsenrolment.repositories.PartnerCurrencyRepository;
 import org.bcp.dlmsenrolment.repositories.PartnerRepository;
 import org.bcp.dlmsenrolment.services.PartnerCurrencyService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -66,6 +67,10 @@ public class PartnerCurrencyServiceImpl implements PartnerCurrencyService {
                 .findByPartnerReferenceNumber(requestDto.getPartnerReferenceNumber())
                 .orElseThrow(() -> new RuntimeException("No partner with reference number: "
                         + requestDto.getPartnerReferenceNumber()));
+        if (!PartnerValueNormalizer.isActive(partner.getPartnerStatus())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("PARTNER_INACTIVE", "Cannot add currencies to an inactive partner", "partnerStatus"));
+        }
 
         // 2. Fetch the set of currency codes that the partner ALREADY has. (No changes needed)
         Set<String> existingCurrencyCodes = repository.findCurrencyCodesByPartner(partner);
@@ -80,8 +85,8 @@ public class PartnerCurrencyServiceImpl implements PartnerCurrencyService {
         if (newCurrenciesToAdd.isEmpty()) {
             PartnerCurrencyResponseDto responseDto = new PartnerCurrencyResponseDto();
             responseDto.setPartnerReferenceNumber(partner.getPartnerReferenceNumber());
-            responseDto.setCurrencies(Collections.emptySet()); // Explicitly show no currencies were added
-            return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", responseDto));
+            responseDto.setCurrencies(Set.of());
+            return ResponseEntity.ok(ApiResponse.success("No new currencies to add.", responseDto));
         }
 
         // 5. Create entity objects ONLY for the new currencies. (No changes needed)
@@ -159,6 +164,10 @@ public class PartnerCurrencyServiceImpl implements PartnerCurrencyService {
                 .findByPartnerReferenceNumber(partnerCurrencyRequestDto.getPartnerReferenceNumber())
                 .orElseThrow(() -> new RuntimeException("No partner with reference number: "
                         + partnerCurrencyRequestDto.getPartnerReferenceNumber()));
+        if (!PartnerValueNormalizer.isActive(partner.getPartnerStatus())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("PARTNER_INACTIVE", "Cannot update currencies for an inactive partner", "partnerStatus"));
+        }
 
         // 2. Fetch the current list of currencies.
         Set<String> existingCurrencies = repository.findCurrencyCodesByPartner(partner);
@@ -239,23 +248,5 @@ public class PartnerCurrencyServiceImpl implements PartnerCurrencyService {
 //        return ResponseEntity.ok(mapper.toResponseDto(updatedCurrency));
 //    }
 
-
-    @Override
-    public ResponseEntity<ApiResponse<PartnerCurrencyResponseDto>> deletePartnerCurrencies(String referenceNumber) {
-        // 1. Find the partner. This remains the same.
-        // If the partner doesn't exist, this will correctly throw an exception.
-        Partner partner = partnerRepository
-                .findByPartnerReferenceNumber(referenceNumber)
-                .orElseThrow(() -> new RuntimeException("No partner with reference number: " + referenceNumber));
-        PartnerCurrencyResponseDto response = new PartnerCurrencyResponseDto();
-        // 2. Delete all currencies for this partner in a single, efficient operation.
-        // We no longer need to check if currencies exist. If none exist, this does nothing,
-        // which is the correct behavior for a DELETE request.
-        repository.deleteAllByPartner(partner);
-
-        // 3. Return a success response.
-        // HTTP 204 No Content is the standard and best practice for a successful DELETE operation.
-        return ResponseEntity.ok(ApiResponse.success("Partner currencies deleted successfully.", response));
-    }
 
 }

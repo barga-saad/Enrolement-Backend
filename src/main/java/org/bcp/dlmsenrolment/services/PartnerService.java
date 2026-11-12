@@ -12,5 +12,5 @@ public interface PartnerService {
     ResponseEntity<ApiResponse<List<PartnerResponseDto>>> getPartners();
     ResponseEntity<ApiResponse<PartnerResponseDto>> createPartner(PartnerRequestDto partnerRequestDto);
     ResponseEntity<ApiResponse<PartnerResponseDto>> updatePartner(PartnerRequestDto partnerRequestDto);
-    ResponseEntity<ApiResponse<PartnerResponseDto>> deletePartner(String referenceNumber);
+    ResponseEntity<ApiResponse<PartnerResponseDto>> updatePartnerStatus(String referenceNumber, String status);
 }
